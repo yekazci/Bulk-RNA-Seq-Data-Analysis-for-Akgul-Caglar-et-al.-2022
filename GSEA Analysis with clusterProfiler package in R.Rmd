@@ -1,0 +1,1259 @@
+---
+title: "GSEA Analysis with clusterProfiler package in R"
+author: "Yekazci"
+date: "03 09 2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+devtools::install_github("stephenturner/msigdf")
+
+library(dplyr)
+
+
+library(msigdf)
+
+
+### To access specific human and mouse gene sets, "hallmark" for instance:
+
+### Human:
+
+msigdf.human %>% 
++     filter(collection=="hallmark") %>% 
++     head
+
+
+# A tibble: 6 x 3
+
+#   collection geneset                          entrez
+#   <chr>      <chr>                             <int>
+# 1 hallmark   HALLMARK_TNFA_SIGNALING_VIA_NFKB   3726
+# 2 hallmark   HALLMARK_TNFA_SIGNALING_VIA_NFKB   2920
+# 3 hallmark   HALLMARK_TNFA_SIGNALING_VIA_NFKB    467
+# 4 hallmark   HALLMARK_TNFA_SIGNALING_VIA_NFKB   4792
+# 5 hallmark   HALLMARK_TNFA_SIGNALING_VIA_NFKB   7128
+# 6 hallmark   HALLMARK_TNFA_SIGNALING_VIA_NFKB   5743
+
+### Mouse:
+
+msigdf.mouse %>% 
++     filter(collection=="hallmark") %>% 
++     head
+
+# A tibble: 6 x 3
+#   collection geneset                             entrez
+#   <chr>      <chr>                                <int>
+# 1 hallmark   HALLMARK_TNFA_SIGNALING_VIA_NFKB 100040853
+# 2 hallmark   HALLMARK_TNFA_SIGNALING_VIA_NFKB 100042651
+# 3 hallmark   HALLMARK_TNFA_SIGNALING_VIA_NFKB    104681
+# 4 hallmark   HALLMARK_TNFA_SIGNALING_VIA_NFKB    105787
+# 5 hallmark   HALLMARK_TNFA_SIGNALING_VIA_NFKB    106628
+# 6 hallmark   HALLMARK_TNFA_SIGNALING_VIA_NFKB    106869
+
+#### Take it and convert to data frame to use in clusterProfiler:
+
+> xxxx = (msigdf.mouse %>% 
++     filter(collection=="hallmark"))
+
+> xxxx = as.data.frame(xxxx)
+
+> head(xxxx)
+
+#   collection                          geneset    entrez
+# 1   hallmark HALLMARK_TNFA_SIGNALING_VIA_NFKB 100040853
+# 2   hallmark HALLMARK_TNFA_SIGNALING_VIA_NFKB 100042651
+# 3   hallmark HALLMARK_TNFA_SIGNALING_VIA_NFKB    104681
+# 4   hallmark HALLMARK_TNFA_SIGNALING_VIA_NFKB    105787
+# 5   hallmark HALLMARK_TNFA_SIGNALING_VIA_NFKB    106628
+# 6   hallmark HALLMARK_TNFA_SIGNALING_VIA_NFKB    106869
+ 
+xxxx$collection = NULL
+
+head(xxxx)
+#                            geneset    entrez
+# 1 HALLMARK_TNFA_SIGNALING_VIA_NFKB 100040853
+# 2 HALLMARK_TNFA_SIGNALING_VIA_NFKB 100042651
+# 3 HALLMARK_TNFA_SIGNALING_VIA_NFKB    104681
+# 4 HALLMARK_TNFA_SIGNALING_VIA_NFKB    105787
+# 5 HALLMARK_TNFA_SIGNALING_VIA_NFKB    106628
+# 6 HALLMARK_TNFA_SIGNALING_VIA_NFKB    106869
+
+colnames(xxxx) = c("ont", "gene")
+
+head(xxxx)
+
+#                                ont      gene
+# 1 HALLMARK_TNFA_SIGNALING_VIA_NFKB 100040853
+# 2 HALLMARK_TNFA_SIGNALING_VIA_NFKB 100042651
+# 3 HALLMARK_TNFA_SIGNALING_VIA_NFKB    104681
+# 4 HALLMARK_TNFA_SIGNALING_VIA_NFKB    105787
+# 5 HALLMARK_TNFA_SIGNALING_VIA_NFKB    106628
+# 6 HALLMARK_TNFA_SIGNALING_VIA_NFKB    106869
+
+##### Let's try analysis using clusterProfiler :
+
+library("clusterProfiler")
+
+hallmark_mouse_v5.2_gene_set_df = xxxx   ### rename better.
+
+example_1 <- enricher(res_DRG_F_vs_cont_drg_na_omit_symbols_rm_dup_sig_down_LFC_1.5$entrez_IDs, universe =  res_DRG_F_vs_cont_drg_na_omit_symbols_rm_dup$entrez_IDs , TERM2GENE=hallmark_mouse_v5.2_gene_set_df, pvalueCutoff = 0.05, qvalueCutoff = 0.05, pAdjustMethod = "BH")
+
+head(example_1)
+# 
+#                                                                                    ID
+# HALLMARK_EPITHELIAL_MESENCHYMAL_TRANSITION HALLMARK_EPITHELIAL_MESENCHYMAL_TRANSITION
+# HALLMARK_IL6_JAK_STAT3_SIGNALING                     HALLMARK_IL6_JAK_STAT3_SIGNALING
+# HALLMARK_INFLAMMATORY_RESPONSE                         HALLMARK_INFLAMMATORY_RESPONSE
+# HALLMARK_KRAS_SIGNALING_UP                                 HALLMARK_KRAS_SIGNALING_UP
+# HALLMARK_COAGULATION                                             HALLMARK_COAGULATION
+# HALLMARK_ANGIOGENESIS                                           HALLMARK_ANGIOGENESIS
+#                                                                           Description
+# HALLMARK_EPITHELIAL_MESENCHYMAL_TRANSITION HALLMARK_EPITHELIAL_MESENCHYMAL_TRANSITION
+# HALLMARK_IL6_JAK_STAT3_SIGNALING                     HALLMARK_IL6_JAK_STAT3_SIGNALING
+# HALLMARK_INFLAMMATORY_RESPONSE                         HALLMARK_INFLAMMATORY_RESPONSE
+# HALLMARK_KRAS_SIGNALING_UP                                 HALLMARK_KRAS_SIGNALING_UP
+# HALLMARK_COAGULATION                                             HALLMARK_COAGULATION
+# HALLMARK_ANGIOGENESIS                                           HALLMARK_ANGIOGENESIS
+#                                            GeneRatio
+# HALLMARK_EPITHELIAL_MESENCHYMAL_TRANSITION    30/191
+# HALLMARK_IL6_JAK_STAT3_SIGNALING              12/191
+# HALLMARK_INFLAMMATORY_RESPONSE                21/191
+# HALLMARK_KRAS_SIGNALING_UP                    23/191
+# HALLMARK_COAGULATION                          16/191
+# HALLMARK_ANGIOGENESIS                          8/191
+#                                             BgRatio
+# HALLMARK_EPITHELIAL_MESENCHYMAL_TRANSITION 275/5040
+# HALLMARK_IL6_JAK_STAT3_SIGNALING            98/5040
+# HALLMARK_INFLAMMATORY_RESPONSE             250/5040
+# HALLMARK_KRAS_SIGNALING_UP                 288/5040
+# HALLMARK_COAGULATION                       168/5040
+# HALLMARK_ANGIOGENESIS                       55/5040
+#                                                  pvalue
+# HALLMARK_EPITHELIAL_MESENCHYMAL_TRANSITION 9.293986e-08
+# HALLMARK_IL6_JAK_STAT3_SIGNALING           2.885057e-04
+# HALLMARK_INFLAMMATORY_RESPONSE             4.361030e-04
+# HALLMARK_KRAS_SIGNALING_UP                 4.786282e-04
+# HALLMARK_COAGULATION                       5.547928e-04
+# HALLMARK_ANGIOGENESIS                      9.679964e-04
+#                                                p.adjust
+# HALLMARK_EPITHELIAL_MESENCHYMAL_TRANSITION 4.554053e-06
+# HALLMARK_IL6_JAK_STAT3_SIGNALING           5.436969e-03
+# HALLMARK_INFLAMMATORY_RESPONSE             5.436969e-03
+# HALLMARK_KRAS_SIGNALING_UP                 5.436969e-03
+# HALLMARK_COAGULATION                       5.436969e-03
+# HALLMARK_ANGIOGENESIS                      7.905304e-03
+#                                                  qvalue
+# HALLMARK_EPITHELIAL_MESENCHYMAL_TRANSITION 3.228437e-06
+# HALLMARK_IL6_JAK_STAT3_SIGNALING           3.854350e-03
+# HALLMARK_INFLAMMATORY_RESPONSE             3.854350e-03
+# HALLMARK_KRAS_SIGNALING_UP                 3.854350e-03
+# HALLMARK_COAGULATION                       3.854350e-03
+# HALLMARK_ANGIOGENESIS                      5.604190e-03
+#                                                                                                                                                                                                                           geneID
+# HALLMARK_EPITHELIAL_MESENCHYMAL_TRANSITION 13179/21817/20315/17313/11475/98932/12825/107589/50530/20379/407800/14219/12834/16948/13717/18933/17022/20310/14268/18131/66695/21825/20564/12842/17390/16402/21828/21810/21345/14234
+# HALLMARK_IL6_JAK_STAT3_SIGNALING                                                                                                                         11482/16847/20292/12983/20310/12494/54635/21938/21926/12491/24088/16176
+# HALLMARK_INFLAMMATORY_RESPONSE                                                                   15894/19734/20339/15200/240168/380713/17069/54598/22035/23796/20292/18439/20343/17295/16402/21938/13614/24088/16176/12985/53313
+# HALLMARK_KRAS_SIGNALING_UP                                                           14254/18613/170757/18671/19734/15200/13730/11815/12628/14584/16598/13805/18933/84094/223272/16658/11421/21938/13040/14257/16176/13846/22778
+# HALLMARK_COAGULATION                                                                                                            18613/12628/50908/50909/22371/17002/18591/14268/21825/223864/17394/17390/13040/21828/13036/16952
+# HALLMARK_ANGIOGENESIS                                                                                                                                                            12825/22370/17022/12842/16402/14184/16523/19074
+#                                            Count
+# HALLMARK_EPITHELIAL_MESENCHYMAL_TRANSITION    30
+# HALLMARK_IL6_JAK_STAT3_SIGNALING              12
+# HALLMARK_INFLAMMATORY_RESPONSE                21
+# HALLMARK_KRAS_SIGNALING_UP                    23
+# HALLMARK_COAGULATION                          16
+# HALLMARK_ANGIOGENESIS                          8
+
+###########################################################################################
+
+
+#### ClusterProfiler works with entrez ids.
+
+
+### Adding entrez ids:
+
+
+res_DRG_F_vs_cont_drg_symbols_NA_keeped$entrez_IDs = mapIds(org.Mm.eg.db, keys = row.names(res_DRG_F_vs_cont_drg_symbols_NA_keeped), keytype = "ENSEMBL", column = "ENTREZID", multiVals = "first")
+'select()' returned 1:many mapping between keys and columns
+
+res_NODS_F_vs_cont_nodose_symbols_NA_keeped$entrez_IDs = mapIds(org.Mm.eg.db, keys = row.names(res_NODS_F_vs_cont_nodose_symbols_NA_keeped), keytype = "ENSEMBL", column = "ENTREZID", multiVals = "first")
+'select()' returned 1:many mapping between keys and columns
+
+### Check:
+
+res_NODS_F_vs_cont_nodose_symbols_NA_keeped
+
+
+
+res_DRG_F_vs_cont_drg_symbols_NA_keeped
+
+
+### Export to .csv:
+
+write.csv(res_DRG_F_vs_cont_drg_symbols_NA_keeped, file = "res_DRG_F_vs_cont_drg_symbols_NA_keeped_entrez.txt")
+write.csv(res_NODS_F_vs_cont_nodose_symbols_NA_keeped, file = "res_NODS_F_vs_cont_nodose_symbols_NA_keeped.txt")
+###
+
+#################################################################################################################
+
+
+### Prepare genelists for GSEA:
+
+data_drg = read.table("res_DRG_F_vs_cont_drg_for_gsea.txt", header = TRUE)
+data_nodose = read.table("res_NODS_F_vs_cont_nodose_for_gsea.txt", header = TRUE)
+###
+head(data_drg)
+# 
+#                    baseMean log2FoldChange     lfcSE      stat   pvalue     padj symbols entrez_IDs X.log10.pvalue sign_of_log2FC signed_log10_pvalue
+# ENSMUSG00000062960 523.9409      -4.459668 0.2439802 -18.27881 1.22e-74 2.18e-70     Kdr      16542       73.91343             -1           -73.91343
+# ENSMUSG00000029648 531.7854      -5.535314 0.3198814 -17.30427 4.37e-67 2.92e-63    Flt1      14254       66.35972             -1           -66.35972
+# ENSMUSG00000030237 299.8563      -5.936046 0.3431707 -17.29765 4.90e-67 2.92e-63 Slco1a4      28250       66.30981             -1           -66.30981
+# ENSMUSG00000036256 958.9834      -4.977515 0.2911882 -17.09381 1.65e-65 7.37e-62  Igfbp7      29817       64.78241             -1           -64.78241
+# ENSMUSG00000044258 242.8467      -4.527187 0.2683465 -16.87068 7.39e-64 2.64e-60  Ctla2a      13024       63.13109             -1           -63.13109
+# ENSMUSG00000027435 447.6272      -5.177918 0.3092389 -16.74407 6.26e-63 1.86e-59    Cd93      17064       62.20370             -1           -62.20370
+#                    log2FC_multiplied_p_value
+# ENSMUSG00000062960                 -5.44e-74
+# ENSMUSG00000029648                 -2.42e-66
+# ENSMUSG00000030237                 -2.91e-66
+# ENSMUSG00000036256                 -8.21e-65
+# ENSMUSG00000044258                 -3.35e-63
+# ENSMUSG00000027435                 -3.24e-62
+
+gene_list_drg = data_drg$signed_log10_pvalue
+
+class(gene_list_drg)
+
+# [1] "numeric"
+
+### with entrez ids:
+
+gene_list_drg_entrez_ids = gene_list_drg
+
+
+names(gene_list_drg_entrez_ids)= as.character(data_drg$entrez_IDs)
+gene_list_drg_entrez_ids = sort(gene_list_drg_entrez_ids, decreasing = TRUE)
+
+head(gene_list_drg_entrez_ids)
+# 
+#     70086    106869 100417675    240034      <NA>     17710 
+# 12.140615  9.204663  9.051642  8.879019  8.805043  8.083355 
+
+###
+
+### with ensembl ids
+gene_list_drg_ensembl_ids = gene_list_drg
+names(gene_list_drg_ensembl_ids) = row.names(data_drg)
+gene_list_drg_ensembl_ids = sort(gene_list_drg_ensembl_ids, decreasing = TRUE)
+head(gene_list_drg_ensembl_ids)
+# 
+# ENSMUSG00000033470 ENSMUSG00000062210 ENSMUSG00000041596 ENSMUSG00000067928 
+#          12.140615           9.204663           9.051642           8.879019 
+# ENSMUSG00000109540 ENSMUSG00000064358 
+#           8.805043           8.083355 
+# 
+# > tail(gene_list_drg_ensembl_ids)
+# ENSMUSG00000027435 ENSMUSG00000044258 ENSMUSG00000036256 ENSMUSG00000030237 
+#          -62.20370          -63.13109          -64.78241          -66.30981 
+# ENSMUSG00000029648 ENSMUSG00000062960 
+#          -66.35972          -73.91343 
+
+### NODOSE:
+
+head(data_nodose)
+
+#### Prepare gene list:
+
+gene_list_nodose = data_nodose$signed_log10_pvalue
+
+### ensembl ids:
+
+gene_list_nodose_ensembl_ids = gene_list_nodose
+
+names(gene_list_nodose_ensembl_ids) = row.names(data_nodose)
+
+gene_list_nodose_ensembl_ids = sort(gene_list_nodose_ensembl_ids, decreasing = TRUE)
+
+head(gene_list_nodose_ensembl_ids)
+
+
+# ENSMUSG00000110123 ENSMUSG00000031074 ENSMUSG00000019906 ENSMUSG00000042515 
+#           4.769830           4.631243           4.346507           4.334838 
+# ENSMUSG00000035944 ENSMUSG00000024085 
+#           4.244470           4.179638 
+
+tail(gene_list_nodose_ensembl_ids)
+
+# ENSMUSG00000020717 ENSMUSG00000030237 ENSMUSG00000043924 ENSMUSG00000019929 
+#          -39.06289          -44.13056          -51.45119          -58.14399 
+# ENSMUSG00000007655 ENSMUSG00000053198 
+#          -61.02830          -73.39202 
+
+#### ready.
+
+###
+
+deneme_2=gseKEGG(geneList = gene_list_drg_entrez_ids, organism = 'mmu')
+
+# preparing geneSet collections...
+# GSEA analysis...
+# leading edge analysis...
+# done...
+# Warning messages:
+# 1: In fgsea(pathways = geneSets, stats = geneList, nperm = nPerm, minSize = minGSSize,  :
+#   There are ties in the preranked stats (0.01% of the list).
+# The order of those tied genes will be arbitrary, which may produce unexpected results.
+# 2: In fgsea(pathways = geneSets, stats = geneList, nperm = nPerm, minSize = minGSSize,  :
+#   There are duplicate gene names, fgsea may produce unexpected results
+# 
+
+####################################################################################################
+
+
+### Önceki analiz hata verdi:
+
+deneme_2=gseKEGG(geneList = gene_list_drg_entrez_ids, organism = 'mmu')
+
+
+# preparing geneSet collections...
+# GSEA analysis...
+# leading edge analysis...
+# done...
+# Warning messages:
+# 1: In fgsea(pathways = geneSets, stats = geneList, nperm = nPerm, minSize = minGSSize,  :
+#   There are ties in the preranked stats (0.01% of the list).
+# The order of those tied genes will be arbitrary, which may produce unexpected results.
+# 2: In fgsea(pathways = geneSets, stats = geneList, nperm = nPerm, minSize = minGSSize,  :
+#   There are duplicate gene names, fgsea may produce unexpected results
+
+### duplicate entrez id'ler var. Duplicate sembol ve entrez id'ler silinip tekrar liste oluşturulacak.
+
+
+
+head(gene_list_drg_entrez_ids)
+
+#     70086    106869 100417675    240034      <NA>     17710 
+# 12.140615  9.204663  9.051642  8.879019  8.805043  8.083355 
+
+
+length(gene_list_drg_entrez_ids)
+
+# [1] 17867
+
+table(duplicated(names(gene_list_drg_entrez_ids)))
+
+# FALSE  TRUE 
+# 15920  1947 
+
+
+res_DRG_F_vs_cont_drg_symbols_NA_keeped
+
+
+table(duplicated(res_DRG_F_vs_cont_drg_symbols_NA_keeped$symbols))
+
+# FALSE  TRUE 
+# 17843    24 
+
+
+#### To obtain specific vector elements by name:
+
+gene_list_drg_entrez_ids["70086"]
+
+#    70086 
+# 12.14062 
+
+table(is.na(names(gene_list_drg_entrez_ids)))
+
+# FALSE  TRUE 
+# 15941  1926 
+
+#########
+
+gene_list_drg_na_omit_names = na.omit(names(gene_list_drg_entrez_ids))
+
+length(gene_list_drg_na_omit_names)
+
+# [1] 15941
+
+head(gene_list_drg_na_omit_names)
+
+# [1] "70086"     "106869"    "100417675" "240034"    "17710"     "11534"    
+
+gene_list_drg_entrez_ids_na_omitted = gene_list_drg_entrez_ids[gene_list_drg_na_omit_names]
+
+head(gene_list_drg_entrez_ids_na_omitted)
+
+#     70086    106869 100417675    240034     17710     11534 
+# 12.140615  9.204663  9.051642  8.879019  8.083355  8.020079 
+
+length(gene_list_drg_entrez_ids_na_omitted)
+
+# [1] 15941
+
+table(is.na(names(gene_list_drg_entrez_ids_na_omitted)))
+
+# FALSE 
+# 15941
+
+gene_list_drg_entrez_ids_na_omitted = sort(gene_list_drg_entrez_ids_na_omitted, decreasing = TRUE)
+
+###### bu liste duplicate gen isimleri içeriyor.
+
+############# To make lists from scratch:
+
+table(duplicated(res_DRG_F_vs_cont_drg_symbols_NA_keeped$symbols))
+
+# FALSE  TRUE 
+# 17843    24 
+
+table(duplicated(res_NODS_F_vs_cont_nodose_symbols_NA_keeped$symbols))
+
+# FALSE  TRUE 
+# 17843    24 
+
+res_DRG_F_vs_cont_drg_unique_symbols_NA_keeped = res_DRG_F_vs_cont_drg_symbols_NA_keeped[!duplicated(res_DRG_F_vs_cont_drg_symbols_NA_keeped$symbols),]
+res_NODS_F_vs_cont_nodose_unique_symbols_NA_keeped = res_NODS_F_vs_cont_nodose_symbols_NA_keeped[!duplicated(res_NODS_F_vs_cont_nodose_symbols_NA_keeped$symbols),]
+
+####
+
+table(duplicated(res_DRG_F_vs_cont_drg_unique_symbols_NA_keeped$symbols))
+
+# FALSE 
+# 17843 
+
+table(duplicated(res_NODS_F_vs_cont_nodose_unique_symbols_NA_keeped$symbols))
+
+# FALSE 
+# 17843 
+
+##### Unique names:  bu isimler alınıp , gene listesi hazırlamak için kullanılacak data frame'ler bu isimler ile sınırlanacak:
+
+DRG_ens_IDs_unique = row.names(res_DRG_F_vs_cont_drg_unique_symbols_NA_keeped)
+NODOSE_ens_IDs_unique = row.names(res_NODS_F_vs_cont_nodose_unique_symbols_NA_keeped)
+
+### "NA" entrez id varsa, silinecek.
+
+### check if any NA entrez ID:
+
+table(is.na(data_drg$entrez_IDs))
+
+# FALSE  TRUE 
+# 15941  1926 
+
+table(is.na(data_nodose$entrez_IDs))
+
+# FALSE  TRUE 
+# 15941  1926
+
+### filter data.frames with unique symbols:   
+
+data_drg_unique_symbols = data_drg[DRG_ens_IDs_unique,]
+data_nodose_unique_symbols = data_nodose[NODOSE_ens_IDs_unique,]
+
+#### Remove "NA" entrez ids:
+
+data_drg_unique_symbols_w_entrez_ids = data_drg_unique_symbols[!is.na(data_drg_unique_symbols$entrez_IDs),]
+data_nodose_unique_symbols_w_entrez_ids = data_nodose_unique_symbols[!is.na(data_nodose_unique_symbols$entrez_IDs),]
+
+ 
+### 
+
+####
+
+table(duplicated(data_drg_unique_symbols_w_entrez_ids$symbols))
+
+# FALSE 
+# 15918 
+
+table(duplicated(data_nodose_unique_symbols_w_entrez_ids$symbols))
+
+# FALSE 
+# 15918 
+
+###
+
+table(duplicated(data_drg_unique_symbols_w_entrez_ids$entrez_IDs))
+
+# FALSE  TRUE 
+# 15911     7 
+
+table(duplicated(data_nodose_unique_symbols_w_entrez_ids$entrez_IDs))
+
+# FALSE  TRUE 
+# 15911     7 
+
+### Bu 7 tane sembol yerine ensembl id koyduklarımız veya farklı sembol fakat aynı entrez id'ye sahip olanlar. Bakmak için:
+
+data_drg_unique_symbols_w_entrez_ids[duplicated(data_drg_unique_symbols_w_entrez_ids$entrez_IDs),]
+
+
+### Bunları da silmek için:
+
+#### önce padj'ye göre sıralayıp, daha az significant olanları sileceğiz, duplikeler arasından.
+
+data_drg_unique_symbols_w_unique_entrez_ids = data_drg_unique_symbols_w_entrez_ids  
+data_drg_unique_symbols_w_unique_entrez_ids = data_drg_unique_symbols_w_unique_entrez_ids[order(data_drg_unique_symbols_w_unique_entrez_ids$padj),]
+
+head(data_drg_unique_symbols_w_unique_entrez_ids)
+
+
+tail(data_drg_unique_symbols_w_unique_entrez_ids)
+
+##### sample nodose için:
+
+####
+data_nodose_unique_symbols_w_unique_entrez_ids = data_nodose_unique_symbols_w_entrez_ids
+data_nodose_unique_symbols_w_unique_entrez_ids = data_nodose_unique_symbols_w_unique_entrez_ids[order(data_nodose_unique_symbols_w_unique_entrez_ids$padj),]
+
+
+head(data_nodose_unique_symbols_w_unique_entrez_ids)
+
+tail(data_nodose_unique_symbols_w_unique_entrez_ids)
+
+###### NOT: normal datayı da padj-sorted şekilde tutuyoruz:
+
+data_nodose_unique_symbols_w_entrez_ids = data_nodose_unique_symbols_w_unique_entrez_ids
+data_drg_unique_symbols_w_entrez_ids = data_drg_unique_symbols_w_unique_entrez_ids 
+
+##### Duplicate entrez ids are removed, keeping only more significant ones:
+
+data_drg_unique_symbols_w_unique_entrez_ids = data_drg_unique_symbols_w_unique_entrez_ids[!duplicated(data_drg_unique_symbols_w_unique_entrez_ids$entrez_IDs),]
+data_nodose_unique_symbols_w_unique_entrez_ids = data_nodose_unique_symbols_w_unique_entrez_ids[!duplicated(data_nodose_unique_symbols_w_unique_entrez_ids$entrez_IDs),]
+####
+table(duplicated(data_drg_unique_symbols_w_unique_entrez_ids$entrez_IDs))
+
+# FALSE 
+# 15911 
+
+table(duplicated(data_nodose_unique_symbols_w_unique_entrez_ids$entrez_IDs))
+
+# FALSE 
+# 15911 
+
+### Bu data clusterprofiler gen listesi hazırlamak için kullanılacak.
+
+
+######################################################
+
+
+table(duplicated(data_drg_unique_symbols_w_unique_entrez_ids$entrez_IDs))
+
+# FALSE 
+# 15911 
+
+table(duplicated(data_nodose_unique_symbols_w_unique_entrez_ids$entrez_IDs))
+
+# FALSE 
+# 15911 
+
+table(duplicated(data_drg_unique_symbols_w_unique_entrez_ids$symbols))
+
+# FALSE 
+# 15911 
+
+table(duplicated(data_nodose_unique_symbols_w_unique_entrez_ids$symbols))
+
+# FALSE 
+# 15911 
+
+#####
+### we checked and there are no duplicates.
+
+### Remove previously formed files:
+
+### gene lists:
+remove(gene_list_drg)
+remove(gene_list_drg_ensembl_ids)
+remove(gene_list_drg_entrez_ids)
+remove(gene_list_drg_entrez_ids_na_omitted)
+remove(gene_list_drg_na_omit_names)
+####
+remove(gene_list_nodose)
+remove(gene_list_nodose_ensembl_ids)
+remove(gene_list_nodose_entrez_ids)
+####
+#####################################
+
+### New gene lists for clusterProfiler:
+
+
+
+########### 
+
+gene_list_drg = data_drg_unique_symbols_w_unique_entrez_ids$signed_log10_pvalue
+gene_list_nodose = data_nodose_unique_symbols_w_unique_entrez_ids$signed_log10_pvalue
+####
+class(gene_list_drg)
+# [1] "numeric"
+class(gene_list_nodose)
+# [1] "numeric"
+####
+
+### name with entrez ids, for drg:
+names(gene_list_drg)= as.character(data_drg_unique_symbols_w_unique_entrez_ids$entrez_IDs)
+
+### Sorting from up to down:
+
+gene_list_drg = sort(gene_list_drg, decreasing = TRUE)
+
+####
+head(gene_list_drg)
+
+#     70086    106869 100417675    240034     17710     11534 
+# 12.140615  9.204663  9.051642  8.879019  8.083355  8.020079 
+
+length(gene_list_drg)
+
+# [1] 15911
+
+###
+
+### Same steps for nodose: 
+
+names(gene_list_nodose)= as.character(data_nodose_unique_symbols_w_unique_entrez_ids$entrez_IDs)
+gene_list_nodose = sort(gene_list_nodose, decreasing = TRUE)
+
+head(gene_list_nodose)
+   14174   108030   245631   239570    17158   217737 
+4.631243 4.346507 4.334838 4.244470 4.179638 4.150739 
+
+####
+
+length(gene_list_nodose)
+# [1] 15911
+
+library(DOSE)   ### for setReadable function to convert ids to symbols:
+library(ReactomePA)
+library(clusterProfiler)
+library(org.Mm.eg.db)
+
+#######
+
+### To classify D.E. genes based on GO distribution at a specific level:
+
+### we wil produce significant genes tables again:
+
+head(data_drg_unique_symbols_w_unique_entrez_ids)
+
+sig_drg_unique_symbol_entrez = subset(data_drg_unique_symbols_w_unique_entrez_ids, padj < 0.05)
+head(sig_drg_unique_symbol_entrez)
+
+length(sig_drg_unique_symbol_entrez$symbols)
+
+# [1] 1023
+
+sig_drg_unique_symbol_entrez_Log_15 = subset(sig_drg_unique_symbol_entrez, abs(log2FoldChange)>1.5)
+
+length(sig_drg_unique_symbol_entrez_Log_15$symbols)
+
+# [1] 397
+
+sig_drg_unique_symbol_entrez_Log_15_up = subset(sig_drg_unique_symbol_entrez, log2FoldChange>1.5)
+
+sig_drg_unique_symbol_entrez_Log_15_down = subset(sig_drg_unique_symbol_entrez, log2FoldChange < -1.5)
+
+length(sig_drg_unique_symbol_entrez_Log_15_up$symbols)
+
+# [1] 19
+
+length(sig_drg_unique_symbol_entrez_Log_15_down$symbols)
+
+# [1] 378
+
+sig_drg_unique_symbol_entrez_Log_05 = subset(sig_drg_unique_symbol_entrez, abs(log2FoldChange)>0.5)
+sig_drg_unique_symbol_entrez_Log_05_up = subset(sig_drg_unique_symbol_entrez, (log2FoldChange)>0.5)
+sig_drg_unique_symbol_entrez_Log_05_down = subset(sig_drg_unique_symbol_entrez, (log2FoldChange) < -0.5)
+
+### check
+length(sig_drg_unique_symbol_entrez_Log_05$symbols)
+# [1] 956
+# length(sig_drg_unique_symbol_entrez_Log_05_up$symbols)
+# [1] 210
+length(sig_drg_unique_symbol_entrez_Log_05_down$symbols)
+# [1] 746
+
+#### Same lists are prepared for nodose:
+
+sig_nodose_unique_symbols_entrez = subset(data_nodose_unique_symbols_w_unique_entrez_ids, padj < 0.05)
+
+length(sig_nodose_unique_symbols_entrez$symbols)
+# [1] 824
+
+sig_nodose_unique_symbols_entrez_Log_15 = subset(sig_nodose_unique_symbols_entrez, abs(log2FoldChange) > 1.5)
+sig_nodose_unique_symbols_entrez_Log_15_up = subset(sig_nodose_unique_symbols_entrez_Log_15, (log2FoldChange) > 1.5)
+sig_nodose_unique_symbols_entrez_Log_15_down = subset(sig_nodose_unique_symbols_entrez_Log_15, (log2FoldChange) < -1.5)
+###
+length(sig_nodose_unique_symbols_entrez_Log_15$symbols)
+# [1] 396
+length(sig_nodose_unique_symbols_entrez_Log_15_up$symbols)
+# [1] 5
+length(sig_nodose_unique_symbols_entrez_Log_15_down$symbols)
+# [1] 391
+### Log2FC 0.5 lists:
+sig_nodose_unique_symbols_entrez_Log_05 = subset(sig_nodose_unique_symbols_entrez, abs(log2FoldChange) > 0.5)
+sig_nodose_unique_symbols_entrez_Log_05_up = subset(sig_nodose_unique_symbols_entrez_Log_05, (log2FoldChange) > 0.5)
+sig_nodose_unique_symbols_entrez_Log_05_down = subset(sig_nodose_unique_symbols_entrez_Log_05, (log2FoldChange) < -0.5)
+### check
+length(sig_nodose_unique_symbols_entrez_Log_05$symbols)
+# [1] 808
+length(sig_nodose_unique_symbols_entrez_Log_05_up$symbols)
+# [1] 62
+length(sig_nodose_unique_symbols_entrez_Log_05_down$symbols)
+# [1] 746
+
+### Lists are ready.
+
+
+###################################################################
+
+#### Group GO Function:
+
+
+
+library(DOSE)
+
+
+library(clusterProfiler)
+
+
+library(org.Mm.eg.db)
+
+groupGO_drg_sig_all_log_15 = groupGO(gene = as.character(sig_drg_unique_symbol_entrez_Log_15$entrez_IDs), OrgDb = org.Mm.eg.db, ont = "BP", level = 3, readable = TRUE)
+
+head(groupGO_drg_sig_all_log_15)
+# 
+#                    ID                              Description Count GeneRatio
+# GO:0019953 GO:0019953                      sexual reproduction     8     8/397
+# GO:0019954 GO:0019954                     asexual reproduction     0     0/397
+# GO:0022414 GO:0022414                     reproductive process    22    22/397
+# GO:0032504 GO:0032504      multicellular organism reproduction     6     6/397
+# GO:0032505 GO:0032505 reproduction of a single-celled organism     0     0/397
+# GO:0061887 GO:0061887         reproduction of symbiont in host     0     0/397
+#                                                                                                                                    geneID
+# GO:0019953                                                                               Sox17/Cxcl12/Lepr/Foxc1/Mfge8/Ace/Hspa1b/Tmem119
+# GO:0019954                                                                                                                               
+# GO:0022414 Kdr/Sox17/Icam1/Cxcl12/Lepr/Foxc1/Vwf/Mfge8/Pdgfb/Cdkn1c/Met/Fzd4/Ace/Mmp2/Hspa1b/Cdk2/Bmp6/Serpinb6b/Tmem119/Il1b/Nupr1/Foxf2
+# GO:0032504                                                                                            Sox17/Cxcl12/Foxc1/Fzd4/Ace/Tmem119
+# GO:0032505                                                                                                                               
+# GO:0061887                                                                                                                               
+
+groupGO_drg_sig_all_log_15 = as.data.frame(groupGO_drg_sig_all_log_15)
+
+head(groupGO_drg_sig_all_log_15)
+# 
+#                    ID                              Description Count GeneRatio
+# GO:0019953 GO:0019953                      sexual reproduction     8     8/397
+# GO:0019954 GO:0019954                     asexual reproduction     0     0/397
+# GO:0022414 GO:0022414                     reproductive process    22    22/397
+# GO:0032504 GO:0032504      multicellular organism reproduction     6     6/397
+# GO:0032505 GO:0032505 reproduction of a single-celled organism     0     0/397
+# # GO:0061887 GO:0061887         reproduction of symbiont in host     0     0/397
+#                                                                                                                                    geneID
+# GO:0019953                                                                               Sox17/Cxcl12/Lepr/Foxc1/Mfge8/Ace/Hspa1b/Tmem119
+# GO:0019954                                                                                                                               
+# GO:0022414 Kdr/Sox17/Icam1/Cxcl12/Lepr/Foxc1/Vwf/Mfge8/Pdgfb/Cdkn1c/Met/Fzd4/Ace/Mmp2/Hspa1b/Cdk2/Bmp6/Serpinb6b/Tmem119/Il1b/Nupr1/Foxf2
+# GO:0032504                                                                                            Sox17/Cxcl12/Foxc1/Fzd4/Ace/Tmem119
+# GO:0032505                                                                                                                               
+# GO:0061887                                                                                                                               
+
+length(groupGO_drg_sig_all_log_15$ID)
+#[1] 571
+
+write.csv(groupGO_drg_sig_all_log_15, file = "CP_RESULTS/groupGO_drg_sig_all_log_15.txt")  ### this includes GO.BP.
+
+groupGO_drg_sig_all_log_15_GO_BP = groupGO_drg_sig_all_log_15
+
+### make for GO.MF and GO.CC:
+
+groupGO_drg_sig_all_log_15_GO_MF = groupGO(gene = as.character(sig_drg_unique_symbol_entrez_Log_15$entrez_IDs), OrgDb = org.Mm.eg.db, ont = "MF", level = 3, readable = TRUE)
+
+groupGO_drg_sig_all_log_15_GO_CC = groupGO(gene = as.character(sig_drg_unique_symbol_entrez_Log_15$entrez_IDs), OrgDb = org.Mm.eg.db, ont = "CC", level = 3, readable = TRUE)
+
+groupGO_drg_sig_all_log_15_GO_MF = as.data.frame(groupGO_drg_sig_all_log_15_GO_MF)
+groupGO_drg_sig_all_log_15_GO_CC = as.data.frame(groupGO_drg_sig_all_log_15_GO_CC)
+
+### export:
+write.csv(groupGO_drg_sig_all_log_15_GO_CC, file = "CP_RESULTS/groupGO_drg_sig_all_log_15_GO_CC.txt")
+write.csv(groupGO_drg_sig_all_log_15_GO_MF, file = "CP_RESULTS/groupGO_drg_sig_all_log_15_GO_MF.txt")
+####
+
+### up 1.5 genes:
+groupGO_drg_sig_log_15_UP_GO_BP = groupGO(gene = as.character(sig_drg_unique_symbol_entrez_Log_15_up$entrez_IDs), OrgDb = org.Mm.eg.db, ont = "BP", level = 3, readable = TRUE)
+
+groupGO_drg_sig_log_15_UP_GO_BP = as.data.frame(groupGO_drg_sig_log_15_UP_GO_BP)
+
+write.csv(groupGO_drg_sig_log_15_UP_GO_BP, file = "CP_RESULTS/groupGO_drg_sig_log_15_UP_GO_BP.txt")
+
+groupGO_drg_sig_log_15_UP_GO_MF = groupGO(gene = as.character(sig_drg_unique_symbol_entrez_Log_15_up$entrez_IDs), OrgDb = org.Mm.eg.db, ont = "MF", level = 3, readable = TRUE)
+
+groupGO_drg_sig_log_15_UP_GO_MF = as.data.frame(groupGO_drg_sig_log_15_UP_GO_MF)
+
+write.csv(groupGO_drg_sig_log_15_UP_GO_MF, file = "CP_RESULTS/groupGO_drg_sig_log_15_UP_GO_MF.txt")
+
+#################################################################################################
+
+library(DOSE)
+
+library(ReactomePA)
+
+library(clusterProfiler)
+
+library(org.Mm.eg.db)
+
+groupGO_drg_sig_log_15_UP_GO_CC = groupGO(gene = as.character(sig_drg_unique_symbol_entrez_Log_15_up$entrez_IDs), OrgDb = org.Mm.eg.db, ont = "CC", level = 3, readable = TRUE)
+
+groupGO_drg_sig_log_15_UP_GO_CC = as.data.frame(groupGO_drg_sig_log_15_UP_GO_CC)
+write.csv(groupGO_drg_sig_log_15_UP_GO_CC, file = "groupGO_drg_sig_log_15_UP_GO_CC.txt")
+
+### GO Classification for Log2FC 0.5:
+groupGO_drg_all_sig_log_05_GO_BP = groupGO(gene = as.character(sig_drg_unique_symbol_entrez_Log_05$entrez_IDs), OrgDb = org.Mm.eg.db, ont = "BP", level = 3, readable = TRUE)
+ 
+groupGO_drg_all_sig_log_05_GO_BP = as.data.frame(groupGO_drg_all_sig_log_05_GO_BP)
+write.csv(groupGO_drg_all_sig_log_05_GO_BP, file = "CP_RESULTS/groupGO_drg_all_sig_log_05_GO_BP.txt")
+
+###
+groupGO_drg_all_sig_log_05_GO_MF = groupGO(gene = as.character(sig_drg_unique_symbol_entrez_Log_05$entrez_IDs), OrgDb = org.Mm.eg.db, ont = "MF", level = 3, readable = TRUE)
+ 
+groupGO_drg_all_sig_log_05_GO_CC = groupGO(gene = as.character(sig_drg_unique_symbol_entrez_Log_05$entrez_IDs), OrgDb = org.Mm.eg.db, ont = "CC", level = 3, readable = TRUE)
+
+ 
+groupGO_drg_all_sig_log_05_GO_MF = as.data.frame(groupGO_drg_all_sig_log_05_GO_MF)
+groupGO_drg_all_sig_log_05_GO_CC = as.data.frame(groupGO_drg_all_sig_log_05_GO_CC)
+
+### export:
+write.csv(groupGO_drg_all_sig_log_05_GO_MF, file = "CP_RESULTS/groupGO_drg_all_sig_log_05_GO_MF.txt")
+write.csv(groupGO_drg_all_sig_log_05_GO_CC, file = "CP_RESULTS/groupGO_drg_all_sig_log_05_GO_CC.txt")
+###
+
+ 
+groupGO_drg_all_sig_log_05_UP_GO_BP = as.data.frame(groupGO_drg_all_sig_log_05_UP_GO_BP)
+write.csv(groupGO_drg_all_sig_log_05_UP_GO_BP, file = "CP_RESULTS/groupGO_drg_all_sig_log_05_UP_GO_BP")
+
+###
+groupGO_drg_all_sig_log_05_UP_GO_MF = groupGO(gene = as.character(sig_drg_unique_symbol_entrez_Log_05_up$entrez_IDs), OrgDb = org.Mm.eg.db, ont = "MF", level = 3, readable = TRUE)
+ 
+
+groupGO_drg_all_sig_log_05_UP_GO_CC = groupGO(gene = as.character(sig_drg_unique_symbol_entrez_Log_05_up$entrez_IDs), OrgDb = org.Mm.eg.db, ont = "CC", level = 3, readable = TRUE)
+
+ 
+groupGO_drg_all_sig_log_05_UP_GO_MF = as.data.frame(groupGO_drg_all_sig_log_05_UP_GO_MF)
+groupGO_drg_all_sig_log_05_UP_GO_CC = as.data.frame(groupGO_drg_all_sig_log_05_UP_GO_CC)
+###
+write.csv(groupGO_drg_all_sig_log_05_UP_GO_MF, file = "CP_RESULTS/groupGO_drg_all_sig_log_05_UP_GO_MF.txt")
+write.csv(groupGO_drg_all_sig_log_05_UP_GO_CC, file = "CP_RESULTS/groupGO_drg_all_sig_log_05_UP_GO_CC.txt")
+ ###
+ ###
+
+### NODOSE:
+ 
+groupGO_nodose_sig_log_15_UP_GO_BP = groupGO(gene = as.character(sig_nodose_unique_symbols_entrez_Log_15_up$entrez_IDs), OrgDb = org.Mm.eg.db, ont = "BP", level = 3, readable = TRUE)
+
+groupGO_nodose_sig_log_15_UP_GO_BP = as.data.frame(groupGO_nodose_sig_log_15_UP_GO_BP)
+write.csv(groupGO_nodose_sig_log_15_UP_GO_BP, file = "CP_RESULTS/groupGO_nodose_sig_log_15_UP_GO_BP.txt")
+
+####
+groupGO_nodose_sig_log_15_UP_GO_MF = groupGO(gene = as.character(sig_nodose_unique_symbols_entrez_Log_15_up$entrez_IDs), OrgDb = org.Mm.eg.db, ont = "MF", level = 3, readable = TRUE)
+ 
+groupGO_nodose_sig_log_15_UP_GO_CC = groupGO(gene = as.character(sig_nodose_unique_symbols_entrez_Log_15_up$entrez_IDs), OrgDb = org.Mm.eg.db, ont = "CC", level = 3, readable = TRUE)
+ 
+groupGO_nodose_sig_log_15_UP_GO_MF = as.data.frame(groupGO_nodose_sig_log_15_UP_GO_MF)
+groupGO_nodose_sig_log_15_UP_GO_CC  = as.data.frame(groupGO_nodose_sig_log_15_UP_GO_CC)
+
+###
+write.csv(groupGO_nodose_sig_log_15_UP_GO_MF, file = "CP_RESULTS/groupGO_nodose_sig_log_15_UP_GO_MF.txt")
+write.csv(groupGO_nodose_sig_log_15_UP_GO_CC, file = "groupGO_nodose_sig_log_15_UP_GO_CC.txt")
+####
+
+####
+groupGO_nodose_sig_log_05_UP_GO_BP = groupGO(gene = as.character(sig_nodose_unique_symbols_entrez_Log_05_up$entrez_IDs), OrgDb = org.Mm.eg.db, ont = "BP", level = 3, readable = TRUE)
+ 
+groupGO_nodose_sig_log_05_UP_GO_MF = groupGO(gene = as.character(sig_nodose_unique_symbols_entrez_Log_05_up$entrez_IDs), OrgDb = org.Mm.eg.db, ont = "MF", level = 3, readable = TRUE)
+
+###
+groupGO_nodose_sig_log_05_UP_GO_BP = as.data.frame(groupGO_nodose_sig_log_05_UP_GO_BP)
+groupGO_nodose_sig_log_05_UP_GO_MF = as.data.frame(groupGO_nodose_sig_log_05_UP_GO_MF)
+
+###
+groupGO_nodose_sig_log_05_UP_GO_CC = groupGO(gene = as.character(sig_nodose_unique_symbols_entrez_Log_05_up$entrez_IDs), OrgDb = org.Mm.eg.db, ont = "CC", level = 3, readable = TRUE)
+ 
+###
+groupGO_nodose_sig_log_05_UP_GO_CC = as.data.frame(groupGO_nodose_sig_log_05_UP_GO_CC)
+### Export:
+write.csv(groupGO_nodose_sig_log_05_UP_GO_BP, file = "groupGO_nodose_sig_log_05_UP_GO_BP.txt")
+write.csv(groupGO_nodose_sig_log_05_UP_GO_MF, file = "groupGO_nodose_sig_log_05_UP_GO_MF.txt")
+write.csv(groupGO_nodose_sig_log_05_UP_GO_CC, file = "groupGO_nodose_sig_log_05_UP_GO_CC.txt")
+###
+
+####################################################################################################  
+
+
+library(DOSE)
+
+library(ReactomePA)
+
+library(clusterProfiler)
+
+library(org.Mm.eg.db)
+
+### GO Over-representation analysis:
+enrichGO_drg_sig_log_15_UP_GO_BP = enrichGO(gene = as.character(sig_drg_unique_symbol_entrez_Log_15_up$entrez_IDs), universe = names(gene_list_drg) , OrgDb = org.Mm.eg.db, ont = "BP", pAdjustMethod = "BH", pvalueCutoff = 0.01, qvalueCutoff = 0.05 ,readable = TRUE)
+ 
+enrichGO_drg_sig_log_15_UP_GO_BP = as.data.frame(enrichGO_drg_sig_log_15_UP_GO_BP)
+
+head(enrichGO_drg_sig_log_15_UP_GO_BP)
+# [1] ID          Description GeneRatio   BgRatio     pvalue      p.adjust   
+# [7] qvalue      geneID      Count      
+# <0 rows> (or 0-length row.names)
+
+enrichGO_drg_sig_log_05_UP_GO_BP = enrichGO(gene = as.character(sig_drg_unique_symbol_entrez_Log_05_up$entrez_IDs), universe = names(gene_list_drg) , OrgDb = org.Mm.eg.db, ont = "BP", pAdjustMethod = "BH", pvalueCutoff = 0.01, qvalueCutoff = 0.05 ,readable = TRUE)
+
+enrichGO_drg_sig_log_05_UP_GO_BP_df = as.data.frame(enrichGO_drg_sig_log_05_UP_GO_BP) 
+head(enrichGO_drg_sig_log_05_UP_GO_BP_df)
+# [1] ID          Description GeneRatio   BgRatio     pvalue      p.adjust   
+# [7] qvalue      geneID      Count      
+# <0 rows> (or 0-length row.names)
+
+length(sig_drg_unique_symbol_entrez_Log_05_up$entrez_IDs)
+# [1] 210
+
+enrichGO_drg_sig_log_05_UP_GO_MF = enrichGO(gene = as.character(sig_drg_unique_symbol_entrez_Log_05_up$entrez_IDs), universe = names(gene_list_drg) , OrgDb = org.Mm.eg.db, ont = "MF", pAdjustMethod = "BH", pvalueCutoff = 0.01, qvalueCutoff = 0.05 ,readable = TRUE)
+ 
+enrichGO_drg_sig_log_05_UP_GO_MF_df = as.data.frame(enrichGO_drg_sig_log_05_UP_GO_MF) 
+
+head(enrichGO_drg_sig_log_05_UP_GO_MF_df)
+# [1] ID          Description GeneRatio   BgRatio     pvalue      p.adjust   
+# [7] qvalue      geneID      Count      
+# <0 rows> (or 0-length row.names)
+
+### KEGG
+
+enrichKEGG_drg_sig_log_15_UP = enrichKEGG(gene = as.character(sig_drg_unique_symbol_entrez_Log_15_up$entrez_IDs), universe = names(gene_list_drg) , organism = 'mmu', pAdjustMethod = "BH", pvalueCutoff = 0.05, qvalueCutoff = 0.05)
+enrichKEGG_drg_sig_log_15_UP_df = as.data.frame(enrichKEGG_drg_sig_log_15_UP)
+
+### KEGG MODULE:
+
+enrich_M_KEGG_drg_sig_log_15_UP = enrichMKEGG(gene = as.character(sig_drg_unique_symbol_entrez_Log_15_up$entrez_IDs), universe = names(gene_list_drg) , organism = 'mmu', pAdjustMethod = "BH", pvalueCutoff = 0.05, qvalueCutoff = 0.05)
+enrich_M_KEGG_drg_sig_log_15_UP_df = as.data.frame(enrich_M_KEGG_drg_sig_log_15_UP)
+
+### For log2FC 0.5 lists:
+
+enrichKEGG_drg_sig_log_05_UP = enrichKEGG(gene = as.character(sig_drg_unique_symbol_entrez_Log_05_up$entrez_IDs), universe = names(gene_list_drg) , organism = 'mmu', pAdjustMethod = "BH", pvalueCutoff = 0.05, qvalueCutoff = 0.05)
+
+enrichKEGG_drg_sig_log_05_UP = setReadable(enrichKEGG_drg_sig_log_05_UP, OrgDb = org.Mm.eg.db, keytype = "ENTREZID")
+
+enrichKEGG_drg_sig_log_05_UP_df = as.data.frame(enrichKEGG_drg_sig_log_05_UP)
+
+head(enrichKEGG_drg_sig_log_05_UP_df)
+
+
+### KEGG MODULE:
+
+###
+enrich_M_KEGG_drg_sig_log_05_UP = enrichMKEGG(gene = as.character(sig_drg_unique_symbol_entrez_Log_05_up$entrez_IDs), universe = names(gene_list_drg) , organism = 'mmu', pAdjustMethod = "BH", pvalueCutoff = 0.05, qvalueCutoff = 0.05)
+
+enrich_M_KEGG_drg_sig_log_05_UP = setReadable(enrich_M_KEGG_drg_sig_log_05_UP, OrgDb = org.Mm.eg.db, keytype = "ENTREZID")
+
+enrich_M_KEGG_drg_sig_log_05_UP_df = as.data.frame(enrich_M_KEGG_drg_sig_log_05_UP)
+
+head(enrich_M_KEGG_drg_sig_log_05_UP_df)
+# [1] ID          Description GeneRatio   BgRatio     pvalue      p.adjust   
+# [7] qvalue      geneID      Count      
+# <0 rows> (or 0-length row.names)
+
+##### Example graph:
+
+barplot(enrich_M_KEGG_drg_sig_log_05_UP, drop=TRUE, showCategory=12)
+
+########### GO_CC Analysis:
+
+enrichGO_drg_sig_log_05_UP_GO_CC = enrichGO(gene = as.character(sig_drg_unique_symbol_entrez_Log_05_up$entrez_IDs), universe = names(gene_list_drg) , OrgDb = org.Mm.eg.db, ont = "CC", pAdjustMethod = "BH", pvalueCutoff = 0.01, qvalueCutoff = 0.05 ,readable = TRUE)
+
+enrichGO_drg_sig_log_05_UP_GO_CC_df = as.data.frame(enrichGO_drg_sig_log_05_UP_GO_CC)
+
+head(enrichGO_drg_sig_log_05_UP_GO_CC_df)
+# [1] ID          Description GeneRatio   BgRatio     pvalue      p.adjust   
+# [7] qvalue      geneID      Count      
+# <0 rows> (or 0-length row.names)
+
+#######################################################################################
+
+
+## EXPORTS:
+
+enrichKEGG_drg_sig_log_15_UP_df 
+#                ID             Description GeneRatio BgRatio       pvalue
+# mmu05143 mmu05143 African trypanosomiasis       2/7 23/6106 0.0002818012
+# mmu05144 mmu05144                 Malaria       2/7 39/6106 0.0008181614
+#             p.adjust      qvalue       geneID Count
+# mmu05143 0.003663416 0.002076430 15129/110257     2
+# mmu05144 0.005318049 0.003014279 15129/110257     2
+
+write.csv(enrichKEGG_drg_sig_log_15_UP_df, file = "CP_RESULTS/DRG/Overrepresentation/enrichKEGG_drg_sig_log_15_UP_df.txt")
+write.csv(enrichKEGG_drg_sig_log_05_UP_df, file = "CP_RESULTS/DRG/Overrepresentation/enrichKEGG_drg_sig_log_05_UP_df.txt")
+
+###
+library(DOSE)
+
+library(ReactomePA)
+
+library(clusterProfiler)
+
+library(org.Mm.eg.db)
+
+enrichGO_drg_sig_log_15_UP_GO_MF = enrichGO(gene = as.character(sig_drg_unique_symbol_entrez_Log_15_up$entrez_IDs), universe = names(gene_list_drg) , OrgDb = org.Mm.eg.db, ont = "MF", pAdjustMethod = "BH", pvalueCutoff = 0.01, qvalueCutoff = 0.05 ,readable = TRUE)
+
+enrichGO_drg_sig_log_15_UP_GO_MF_df = as.data.frame(enrichGO_drg_sig_log_15_UP_GO_MF)
+ 
+head(enrichGO_drg_sig_log_15_UP_GO_MF_df)
+#                    ID                Description GeneRatio  BgRatio
+# GO:0020037 GO:0020037               heme binding      3/17 75/15203
+# GO:0046906 GO:0046906       tetrapyrrole binding      3/17 83/15203
+# GO:0140104 GO:0140104 molecular carrier activity      2/17 28/15203
+#                  pvalue    p.adjust      qvalue                geneID Count
+# GO:0020037 7.461221e-05 0.003028937 0.001541038 Hbb-bh1/Hba-a2/Cyp2j5     3
+# GO:0046906 1.009646e-04 0.003028937 0.001541038 Hbb-bh1/Hba-a2/Cyp2j5     3
+# GO:0140104 4.373238e-04 0.008746475 0.004449961        Hbb-b1/Hbb-bh1     2
+
+write.csv(enrichGO_drg_sig_log_15_UP_GO_MF_df, file = "CP_RESULTS/DRG/Overrepresentation/enrichGO_drg_sig_log_15_UP_GO_MF_df.txt")
+
+### GO MF for logFC 0.5 DRG:
+
+enrichGO_drg_sig_log_05_UP_GO_MF = enrichGO(gene = as.character(sig_drg_unique_symbol_entrez_Log_05_up$entrez_IDs), universe = names(gene_list_drg) , OrgDb = org.Mm.eg.db, ont = "MF", pAdjustMethod = "BH", pvalueCutoff = 0.01, qvalueCutoff = 0.05 ,readable = TRUE)
+
+enrichGO_drg_sig_log_05_UP_GO_MF_df = as.data.frame(enrichGO_drg_sig_log_05_UP_GO_MF) 
+
+head(enrichGO_drg_sig_log_05_UP_GO_MF_df)
+# [1] ID          Description GeneRatio   BgRatio     pvalue      p.adjust   
+# [7] qvalue      geneID      Count      
+# <0 rows> (or 0-length row.names)
+
+###
+
+enrichGO_drg_sig_log_15_UP_GO_CC = enrichGO(gene = as.character(sig_drg_unique_symbol_entrez_Log_15_up$entrez_IDs), universe = names(gene_list_drg) , OrgDb = org.Mm.eg.db, ont = "CC", pAdjustMethod = "BH", pvalueCutoff = 0.01, qvalueCutoff = 0.05 ,readable = TRUE)
+
+enrichGO_drg_sig_log_15_UP_GO_CC_df = as.data.frame(enrichGO_drg_sig_log_15_UP_GO_CC)
+
+head(enrichGO_drg_sig_log_15_UP_GO_CC_df)
+
+# [1] ID          Description GeneRatio   BgRatio     pvalue      p.adjust   
+# [7] qvalue      geneID      Count      
+# <0 rows> (or 0-length row.names)
+
+### ReactomePA:
+
+####
+
+enrich_Reactome_drg_sig_log_15_UP = enrichPathway(gene = as.character(sig_drg_unique_symbol_entrez_Log_15_up$entrez_IDs), universe = names(gene_list_drg) , organism = 'mouse', pAdjustMethod = "BH", pvalueCutoff = 0.05, qvalueCutoff = 0.05 ,readable = TRUE)
+ 
+ enrich_Reactome_drg_sig_log_15_UP_df = as.data.frame(enrich_Reactome_drg_sig_log_15_UP)
+
+ head(enrich_Reactome_drg_sig_log_15_UP_df)
+# [1] ID          Description GeneRatio   BgRatio     pvalue      p.adjust    qvalue      geneID      Count      
+# <0 rows> (or 0-length row.names)
+ 
+###
+enrich_Reactome_drg_sig_log_05_UP = enrichPathway(gene = as.character(sig_drg_unique_symbol_entrez_Log_05_up$entrez_IDs), universe = names(gene_list_drg) , organism = 'mouse', pAdjustMethod = "BH", pvalueCutoff = 0.05, qvalueCutoff = 0.05 ,readable = TRUE)
+ 
+ 
+enrich_Reactome_drg_sig_log_05_UP_df = as.data.frame(enrich_Reactome_drg_sig_log_05_UP)
+head(enrich_Reactome_drg_sig_log_05_UP_df)
+# [1] ID          Description GeneRatio   BgRatio     pvalue      p.adjust    qvalue      geneID      Count      
+# <0 rows> (or 0-length row.names)
+
+length(sig_drg_unique_symbol_entrez_Log_05_up$entrez_IDs)
+#[1] 210
+
+###
+
+enrich_Reactome_nodose_sig_log_05_UP = enrichPathway(gene = as.character(sig_nodose_unique_symbols_entrez_Log_05_up$entrez_IDs), universe = names(gene_list_nodose) , organism = 'mouse', pAdjustMethod = "BH", pvalueCutoff = 0.05, qvalueCutoff = 0.05 ,readable = TRUE)
+ 
+enrich_Reactome_nodose_sig_log_05_UP_df = as.data.frame(enrich_Reactome_nodose_sig_log_05_UP)
+
+head(enrich_Reactome_nodose_sig_log_05_UP_df)
+# [1] ID          Description GeneRatio   BgRatio     pvalue      p.adjust    qvalue      geneID      Count      
+# <0 rows> (or 0-length row.names)
+
+
+### Check all terms in the list, i.e. significant and unsignificant:
+
+head(enrich_Reactome_drg_sig_log_05_UP)
+
+### Results summary:
+
+enrich_Reactome_drg_sig_log_05_UP
+#
+# over-representation test
+#
+#...@organism 	 mouse 
+#...@ontology 	 Reactome 
+#...@keytype 	 ENTREZID 
+#...@gene 	 chr [1:210] "70086" "106869" "100417675" "240034" "17710" "11534" ...
+#...pvalues adjusted by 'BH' with cutoff <0.05 
+#...0 enriched terms found
+#...Citation
+  # Guangchuang Yu, Qing-Yu He. ReactomePA: an R/Bioconductor package for
+  # reactome pathway analysis and visualization. Molecular BioSystems
+  # 2016, 12(2):477-479 
+
+########################################################################################################################
+
+
+### GSEA analysis by using msigdf package for MSigDB (molecular signature database) gene set collections
+
+
+
+library(dplyr)
+
+library(msigdf)
+
+mouse_hallmark_v5.2_df = (msigdf.mouse %>% filter(collection=="hallmark"))
+
+mouse_hallmark_v5.2_df = as.data.frame(mouse_hallmark_v5.2_df)
+
+head(mouse_hallmark_v5.2_df)
+#   collection                          geneset    entrez
+# 1   hallmark HALLMARK_TNFA_SIGNALING_VIA_NFKB 100040853
+# 2   hallmark HALLMARK_TNFA_SIGNALING_VIA_NFKB 100042651
+# 3   hallmark HALLMARK_TNFA_SIGNALING_VIA_NFKB    104681
+# 4   hallmark HALLMARK_TNFA_SIGNALING_VIA_NFKB    105787
+# 5   hallmark HALLMARK_TNFA_SIGNALING_VIA_NFKB    106628
+# 6   hallmark HALLMARK_TNFA_SIGNALING_VIA_NFKB    106869
+
+length(mouse_hallmark_v5.2_df$collection)
+#[1] 12067
+
+mouse_hallmark_v5.2_df$collection =NULL
+
+colnames(mouse_hallmark_v5.2_df) = c("ont", "gene")
+
+head(mouse_hallmark_v5.2_df)
+#                                ont      gene
+# 1 HALLMARK_TNFA_SIGNALING_VIA_NFKB 100040853
+# 2 HALLMARK_TNFA_SIGNALING_VIA_NFKB 100042651
+# 3 HALLMARK_TNFA_SIGNALING_VIA_NFKB    104681
+# 4 HALLMARK_TNFA_SIGNALING_VIA_NFKB    105787
+# 5 HALLMARK_TNFA_SIGNALING_VIA_NFKB    106628
+# 6 HALLMARK_TNFA_SIGNALING_VIA_NFKB    106869
+
+enricher_mouse_hallmark_drg_sig_log_05_UP = enricher(gene = as.character(sig_drg_unique_symbol_entrez_Log_05_up$entrez_IDs), universe = names(gene_list_drg) , TERM2GENE = mouse_hallmark_v5.2_df , pAdjustMethod = "BH", pvalueCutoff = 0.05, qvalueCutoff = 0.05)
+
+enricher_mouse_hallmark_drg_sig_log_05_UP = setReadable(enricher_mouse_hallmark_drg_sig_log_05_UP, keytype = "ENTREZID" ,OrgDb = org.Mm.eg.db)
+
+enricher_mouse_hallmark_drg_sig_log_05_UP_df = as.data.frame(enricher_mouse_hallmark_drg_sig_log_05_UP)
+
+head(enricher_mouse_hallmark_drg_sig_log_05_UP_df)
+# [1] ID          Description GeneRatio   BgRatio     pvalue      p.adjust   
+# [7] qvalue      geneID      Count      
+# <0 rows> (or 0-length row.names)
+
+#### Data.frame'e çevirdiğimizde q-value thresholdu devreye sokarak listeyi veriyor.
+
+####
+
+enricher_mouse_hallmark_drg_sig_log_15_UP = enricher(gene = as.character(sig_drg_unique_symbol_entrez_Log_15_up$entrez_IDs), universe = names(gene_list_drg) , TERM2GENE = mouse_hallmark_v5.2_df , pAdjustMethod = "BH", pvalueCutoff = 0.05, qvalueCutoff = 0.05)
+ 
+ 
+head(enricher_mouse_hallmark_drg_sig_log_15_UP)
+#                                                              ID
+# HALLMARK_HEME_METABOLISM               HALLMARK_HEME_METABOLISM
+# HALLMARK_ESTROGEN_RESPONSE_LATE HALLMARK_ESTROGEN_RESPONSE_LATE
+# HALLMARK_COMPLEMENT                         HALLMARK_COMPLEMENT
+# HALLMARK_ANGIOGENESIS                     HALLMARK_ANGIOGENESIS
+# HALLMARK_ANDROGEN_RESPONSE           HALLMARK_ANDROGEN_RESPONSE
+# HALLMARK_XENOBIOTIC_METABOLISM   HALLMARK_XENOBIOTIC_METABOLISM
+#                                                     Description GeneRatio
+# HALLMARK_HEME_METABOLISM               HALLMARK_HEME_METABOLISM       3/9
+# HALLMARK_ESTROGEN_RESPONSE_LATE HALLMARK_ESTROGEN_RESPONSE_LATE       2/9
+# HALLMARK_COMPLEMENT                         HALLMARK_COMPLEMENT       2/9
+# HALLMARK_ANGIOGENESIS                     HALLMARK_ANGIOGENESIS       1/9
+# HALLMARK_ANDROGEN_RESPONSE           HALLMARK_ANDROGEN_RESPONSE       1/9
+# HALLMARK_XENOBIOTIC_METABOLISM   HALLMARK_XENOBIOTIC_METABOLISM       1/9
+#                                  BgRatio      pvalue  p.adjust    qvalue
+# HALLMARK_HEME_METABOLISM        268/5046 0.009798227 0.1665699 0.1650228
+# HALLMARK_ESTROGEN_RESPONSE_LATE 266/5046 0.078002802 0.3994953 0.3957848
+# HALLMARK_COMPLEMENT             272/5046 0.081113483 0.3994953 0.3957848
+# HALLMARK_ANGIOGENESIS            55/5046 0.093998888 0.3994953 0.3957848
+# HALLMARK_ANDROGEN_RESPONSE      162/5046 0.254662811 0.4496116 0.4454356
+# HALLMARK_XENOBIOTIC_METABOLISM  265/5046 0.384863438 0.4496116 0.4454356
+#                                             geneID Count
+# HALLMARK_HEME_METABOLISM        15129/15132/110257     3
+# HALLMARK_ESTROGEN_RESPONSE_LATE      432466/229550     2
+# HALLMARK_COMPLEMENT                   229550/12836     2
+# HALLMARK_ANGIOGENESIS                        12836     1
+# HALLMARK_ANDROGEN_RESPONSE                  106869     1
+# HALLMARK_XENOBIOTIC_METABOLISM               13109     1
+ 
+enricher_mouse_hallmark_drg_sig_log_15_UP = setReadable(enricher_mouse_hallmark_drg_sig_log_15_UP, keytype = "ENTREZID", OrgDb = org.Mm.eg.db)
+
+enricher_mouse_hallmark_drg_sig_log_15_UP_df = as.data.frame(enricher_mouse_hallmark_drg_sig_log_15_UP)
+
+head(enricher_mouse_hallmark_drg_sig_log_15_UP_df)
+
+# [1] ID          Description GeneRatio   BgRatio     pvalue      p.adjust   
+# [7] qvalue      geneID      Count      
+# <0 rows> (or 0-length row.names)
+
+sessionInfo()
+
+
+############### END ###############
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```
+
