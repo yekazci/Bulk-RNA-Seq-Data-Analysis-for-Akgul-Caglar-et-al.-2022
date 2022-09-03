@@ -1,0 +1,1320 @@
+---
+title: "Gene Set Overrepresentation Analysis by Goseq from GO-KEGG-REACTOME Databases"
+author: "Yekazci"
+date: "03 09 2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+
+
+### We will use Goseq method to find enriched pathways because it takes the length bias of input genes into account.
+
+
+ assayed_genes_DRG = row.names(res_DRG_F_vs_cont_drg_symbols_NA_keeped)
+
+
+#####
+
+ assayed_genes_NOD = row.names(res_NODS_F_vs_cont_nodose_symbols_NA_keeped)
+
+
+
+####
+
+ de_genes_DRG_all = row.names(res_DRG_F_NA_keeped_sig)
+ de_genes_DRG_UP = row.names(res_DRG_F_NA_keeped_sig_up)
+ de_genes_DRG_DOWN = row.names(res_DRG_F_NA_keeped_sig_down)
+ ###
+ length(de_genes_DRG_all)
+# [1] 412
+ length(de_genes_DRG_UP)
+# [1] 28
+ length(de_genes_DRG_DOWN)
+# [1] 384
+##
+ de_genes_NOD_all = row.names(res_NODS_F_NA_keeped_sig)
+ de_genes_NOD_UP = row.names(res_NODS_F_NA_keeped_sig_UP)
+ de_genes_NOD_DOWN = row.names(res_NODS_F_NA_keeped_sig_DOWN)
+ length(de_genes_NOD_all)
+# [1] 411
+# length(de_genes_NOD_UP)
+# [1] 9
+# length(de_genes_NOD_DOWN)
+# [1] 402
+
+### Diff. Expressed genes in both of DRG and NODOSE:
+
+de_genes_both_DRG_NOD = intersect(de_genes_DRG_all, de_genes_NOD_all)
+
+##### Gene vector for GOSEQ: 
+
+ gene_vector_DRG_all = as.integer(assayed_genes_DRG%in%de_genes_DRG_all)
+ names(gene_vector_DRG_all) = assayed_genes_DRG
+ table(gene_vector_DRG_all)
+ gene_vector_DRG_all
+ 
+#     0     1 
+# 17455   412 
+ 
+ 
+ 
+ gene_vector_NOD_all = as.integer(assayed_genes_NOD%in%de_genes_NOD_all)
+ names(gene_vector_NOD_all) = assayed_genes_NOD
+ table(gene_vector_NOD_all)
+ gene_vector_NOD_all
+ 
+#     0     1 
+# 17456   411 
+
+### Make our own txdb:
+
+#### find the path of gtf file and unzip it. Then:
+
+mouse_txdb_ens_v91 <- makeTxDbFromGFF("E:/0_MAIN_TRANSCRIPTOME/1_TRANSCRIPTOME_ANALYSIS/DRG_TRANSCRIPTOME_1_ANALYSIS/Mus_musculus.GRCm38.91.gtf/Mus_musculus.GRCm38.91.gtf",format="gtf")
+
+mouse_txdb_ens_v91
+
+# TxDb object:
+# Db type: TxDb
+# Supporting package: GenomicFeatures
+# Data source: E:/0_MAIN_TRANSCRIPTOME/1_TRANSCRIPTOME_ANALYSIS/DRG_TRANSCRIPTOME_1_ANALYSIS/Mus_musculus.GRCm38.91.gtf/Mus_musculus.GRCm38.91.gtf
+# Organism: NA
+# Taxonomy ID: NA
+# miRBase build ID: NA
+# Genome: NA
+# transcript_nrow: 133944
+# exon_nrow: 503855
+# cds_nrow: 240154
+# Db created by: GenomicFeatures package from Bioconductor
+# Creation time: 2018-04-30 22:00:52 +0300 (Mon, 30 Apr 2018)
+# GenomicFeatures version at creation time: 1.30.3
+# RSQLite version at creation time: 2.1.0
+# DBSCHEMAVERSION: 1.2
+
+ mouse_ens_v91_txlength =  transcriptLengths( mouse_txdb_ens_v91)
+ head(mouse_ens_v91_txlength)
+ 
+#  
+#   tx_id            tx_name            gene_id nexon tx_len
+# 1     1 ENSMUST00000193812 ENSMUSG00000102693     1   1070
+# 2     2 ENSMUST00000082908 ENSMUSG00000064842     1    110
+# 3     3 ENSMUST00000192857 ENSMUSG00000102851     1    480
+# 4     4 ENSMUST00000161581 ENSMUSG00000089699     2    250
+# 5     5 ENSMUST00000192183 ENSMUSG00000103147     1    926
+# 6     6 ENSMUST00000193244 ENSMUSG00000102348     1   1634
+
+### Form a data frame with tx-lengths and gene ids:
+
+my_mouse_ens_v91_txlength_df  = as.data.frame(mouse_ens_v91_txlength$gene_id)
+
+my_mouse_ens_v91_txlength_df$txlength = mouse_ens_v91_txlength$tx_len
+
+colnames(my_mouse_ens_v91_txlength_df) = c("gene_id","txlength")
+
+head(my_mouse_ens_v91_txlength_df)
+
+
+#              gene_id txlength
+# 1 ENSMUSG00000102693     1070
+# 2 ENSMUSG00000064842      110
+# 3 ENSMUSG00000102851      480
+# 4 ENSMUSG00000089699      250
+# 5 ENSMUSG00000103147      926
+# 6 ENSMUSG00000102348     1634
+
+length(my_mouse_ens_v91_txlength_df$gene_id)
+
+# [1] 133944
+
+table(duplicated(my_mouse_ens_v91_txlength_df$gene_id))
+
+# FALSE  TRUE 
+# 53465 80479
+
+### We have 53465 genes and 133944 transcript lengths.
+
+### these include the lenghts of all transcripts for all genes.
+ 
+### We will only take median transcript length for each gene:
+### NOT: As in definition of median, if there are two transcripts, it gives mean of them.
+
+library(doBy)
+
+my_mouse_ens_v91_median_txlength_df = summaryBy(txlength ~ gene_id, data = my_mouse_ens_v91_txlength_df, FUN = list(median))
+
+length(my_mouse_ens_v91_txlength_df$gene_id)
+
+# [1] 133944
+
+length(my_mouse_ens_v91_median_txlength_df$gene_id)
+
+# [1] 53465
+
+head(my_mouse_ens_v91_median_txlength_df)
+# 
+#              gene_id txlength.median
+# 1 ENSMUSG00000000001          3262.0
+# 2 ENSMUSG00000000003           799.5
+# 3 ENSMUSG00000000028          1747.0
+# 4 ENSMUSG00000000031          1178.0
+# 5 ENSMUSG00000000037          3440.0
+# 6 ENSMUSG00000000049           552.5
+
+
+ row.names(my_mouse_ens_v91_median_txlength_df) = my_mouse_ens_v91_median_txlength_df$gene_id
+ head(my_mouse_ens_v91_median_txlength_df)
+ 
+#                               gene_id txlength.median
+# ENSMUSG00000000001 ENSMUSG00000000001          3262.0
+# ENSMUSG00000000003 ENSMUSG00000000003           799.5
+# ENSMUSG00000000028 ENSMUSG00000000028          1747.0
+# ENSMUSG00000000031 ENSMUSG00000000031          1178.0
+# ENSMUSG00000000037 ENSMUSG00000000037          3440.0
+# ENSMUSG00000000049 ENSMUSG00000000049           552.5
+ 
+ 
+my_mouse_ens_v91_median_txlength_df$gene_id = NULL
+
+head(my_mouse_ens_v91_median_txlength_df)
+
+#                    txlength.median
+# ENSMUSG00000000001          3262.0
+# ENSMUSG00000000003           799.5
+# ENSMUSG00000000028          1747.0
+# ENSMUSG00000000031          1178.0
+# ENSMUSG00000000037          3440.0
+# ENSMUSG00000000049           552.5
+
+#### Goseq try with UCSC mm10 or my ens v91 median lengths:
+
+ pwf_UCSC_mm10_try = nullp(gene_vector_DRG_all, "mm10", "ensGene")
+
+# Can't find mm10/ensGene length data in genLenDataBase...
+# Found the annotaion package, TxDb.Mmusculus.UCSC.mm10.ensGene
+# Trying to get the gene lengths from it.
+# Warning message:
+# In pcls(G) : initial point very close to some inequality constraints
+
+pwf_ens91_median_try_2_DRG = nullp(gene_vector_DRG_all, bias.data = my_mouse_ens_v91_median_txlength_df[assayed_genes_DRG,])
+
+### Nodose:
+
+pwf_UCSC_mm10_try_1_NOD = nullp(gene_vector_NOD_all, "mm10", "ensGene")
+
+# Can't find mm10/ensGene length data in genLenDataBase...
+# Found the annotaion package, TxDb.Mmusculus.UCSC.mm10.ensGene
+# Trying to get the gene lengths from it.
+# Warning message:
+# In pcls(G) : initial point very close to some inequality constraints
+
+pwf_ens91_median_try_2_NOD = nullp(gene_vector_NOD_all, bias.data = my_mouse_ens_v91_median_txlength_df[assayed_genes_NOD,])
+
+# Warning message:
+# In pcls(G) : initial point very close to some inequality constraints
+
+
+######################################################################################################################
+
+### Implementation of Goseq with KEGG Database:
+
+### We go on with pwf formed with ens v91 median transcript lengths:
+
+ # Get the mapping from ENSEMBL 2 Entrez
+
+library(org.Mm.eg.db)
+
+ en2eg=as.list(org.Mm.egENSEMBL2EG)
+ head(en2eg)
+
+# $`ENSMUSG00000030359`
+# [1] "11287"
+
+# $ENSMUSG00000020804
+# [1] "11298"
+# 
+# $ENSMUSG00000025375
+# [1] "11302"
+# 
+# $ENSMUSG00000015243
+# [1] "11303"
+# 
+# $ENSMUSG00000028125
+# [1] "11304"
+# 
+# $ENSMUSG00000026944
+# [1] "11305"
+
+# Get the mapping from Entrez 2 KEGG
+ 
+ eg2kegg=as.list(org.Mm.egPATH)
+ head(eg2kegg)
+#  
+#  
+# $`11287`
+# [1] NA
+# 
+# $`11298`
+# [1] "00380" "01100"
+# 
+# $`11302`
+# [1] NA
+# 
+# $`11303`
+# [1] "02010" "04975"
+# 
+# $`11304`
+# [1] "02010"
+# 
+# $`11305`
+# [1] "02010" "04142"
+
+# Define a function which gets all unique KEGG IDs
+# associated with a set of Entrez IDs
+ grepKEGG=function(id,mapkeys){unique(unlist(mapkeys[id],use.names=FALSE))}
+
+ # Apply this function to every entry in the mapping from
+ # ENSEMBL 2 Entrez to combine the two maps
+
+kegg=lapply(en2eg,grepKEGG,eg2kegg)
+
+head(kegg)
+
+# 
+# $`ENSMUSG00000030359`
+# [1] NA
+# 
+# $ENSMUSG00000020804
+# [1] "00380" "01100"
+# 
+# $ENSMUSG00000025375
+# [1] NA
+# 
+# $ENSMUSG00000015243
+# [1] "02010" "04975"
+# 
+# $ENSMUSG00000028125
+# [1] "02010"
+# 
+# $ENSMUSG00000026944
+# [1] "02010" "04142"
+# 
+
+##########
+
+### KEGG enrichment analysis with goseq:
+
+KEGG_DRG_all = goseq(pwf_ens91_median_try_2_DRG,  gene2cat = kegg)
+
+# Using manually entered categories.
+# For 12910 genes, we could not find any categories. These genes will be excluded.
+# To force their use, please run with use_genes_without_cat=TRUE (see documentation).
+# This was the default behavior for version 1.15.1 and earlier.
+# Calculating the p-values...
+
+head(KEGG_DRG_all)
+# 
+#     category over_represented_pvalue under_represented_pvalue numDEInCat
+# 194    05144            1.176673e-13                1.0000000         15
+# 107    04060            1.391306e-09                1.0000000         23
+# 137    04514            4.207293e-07                0.9999999         16
+# 193    05143            2.682793e-06                0.9999998          7
+# 136    04512            2.760111e-06                0.9999996         13
+# 135    04510            4.906083e-06                0.9999988         20
+#     numInCat
+# 194       38
+# 107      165
+# 137      111
+# 193       22
+# 136       80
+# 135      194
+
+### Adding BH p adj (fdr) values:
+
+ KEGG_DRG_all$padj_value = p.adjust(KEGG_DRG_all$over_represented_pvalue, method = "BH")
+ 
+ head(KEGG_DRG_all)
+#  
+#     category over_represented_pvalue under_represented_pvalue numDEInCat
+# 194    05144            1.176673e-13                1.0000000         15
+# 107    04060            1.391306e-09                1.0000000         23
+# 137    04514            4.207293e-07                0.9999999         16
+# 193    05143            2.682793e-06                0.9999998          7
+# 136    04512            2.760111e-06                0.9999996         13
+# 135    04510            4.906083e-06                0.9999988         20
+#     numInCat   padj_value
+# 194       38 2.635748e-11
+# 107      165 1.558263e-07
+# 137      111 3.141445e-05
+# 193       22 1.236530e-04
+# 136       80 1.236530e-04
+# 135      194 1.831604e-04
+ 
+### Order by padj values:
+KEGG_DRG_all = KEGG_DRG_all[order(KEGG_DRG_all$padj_value),] 
+### significant list:
+KEGG_DRG_all_sig = subset(KEGG_DRG_all, padj_value < 0.05)
+length(KEGG_DRG_all_sig$category)
+# [1] 18
+length(KEGG_DRG_all$category)
+# [1] 224
+
+### Adding Kegg pathway names and etc.:
+
+
+library("stringr")
+
+KEGG_DRG_all_sig_mmu_IDS = str_c("mmu", KEGG_DRG_all_sig$category)
+
+KEGG_DRG_all_sig_mmu_IDS  = as.data.frame(KEGG_DRG_all_sig_mmu_IDS)
+
+### Adding kegg names:
+
+library(KEGGREST)
+
+KEGG_DRG_all_sig$KEGG_Name = keggList(KEGG_DRG_all_sig_mmu_IDS$KEGG_DRG_all_sig_mmu_IDS)
+
+### Add "mmu" KEGG Ids:
+
+KEGG_DRG_all_sig$KEGG_ID = KEGG_DRG_all_sig_mmu_IDS$KEGG_DRG_all_sig_mmu_IDS
+
+### EXPORT:
+
+write.csv(KEGG_DRG_all_sig, file = "KEGG_DRG_all_sig.txt")
+
+
+### KEGG analysis for nodose group:
+
+KEGG_NODOSE_all = goseq(pwf_ens91_median_try_2_NOD, gene2cat = kegg)
+
+# Using manually entered categories.
+# For 12910 genes, we could not find any categories. These genes will be excluded.
+# To force their use, please run with use_genes_without_cat=TRUE (see documentation).
+# This was the default behavior for version 1.15.1 and earlier.
+# Calculating the p-values...
+
+
+### Adding BH p adj (fdr) values:
+
+KEGG_NODOSE_all$padj_value = p.adjust(KEGG_NODOSE_all$over_represented_pvalue, method = "BH")
+
+### Order by padj values:
+KEGG_NODOSE_all = KEGG_NODOSE_all[order(KEGG_NODOSE_all$padj_value),] 
+
+### significant list:
+
+KEGG_NODOSE_all_sig = subset(KEGG_NODOSE_all, padj_value < 0.05)
+
+length(KEGG_NODOSE_all_sig$category)
+
+# [1] 16
+
+length(KEGG_NODOSE_all$category)
+
+# [1] 224
+
+
+### Adding and modifying Kegg pathway names 
+
+#### for NODOSE group:
+
+KEGG_NODOSE_all_sig_mmu_IDS = str_c("mmu", KEGG_NODOSE_all_sig$category)
+KEGG_NODOSE_all_sig_mmu_IDS  = as.data.frame(KEGG_NODOSE_all_sig_mmu_IDS)
+KEGG_NODOSE_all_sig$KEGG_Name = keggList(KEGG_NODOSE_all_sig_mmu_IDS$KEGG_NODOSE_all_sig_mmu_IDS)
+
+### Add "mmu" KEGG Ids:
+
+KEGG_NODOSE_all_sig$KEGG_ID = KEGG_NODOSE_all_sig_mmu_IDS$KEGG_NODOSE_all_sig_mmu_IDS
+ 
+
+### EXPORT:
+
+write.csv(KEGG_NODOSE_all_sig, file = "KEGG_NODOSE_all_sig.txt")
+
+#########################################################################
+
+#### Same KEGG enrichment analysis with only upregulated significant genes: 
+
+############# Only  Up DE. genes:
+
+gene_vector_DRG_UP = as.integer(assayed_genes_DRG%in%de_genes_DRG_UP)
+
+names(gene_vector_DRG_UP) = assayed_genes_DRG
+
+table(gene_vector_DRG_UP)
+
+gene_vector_DRG_UP
+ 
+#     0     1 
+# 17839    28 
+
+
+gene_vector_NODOSE_UP = as.integer(assayed_genes_NOD%in%de_genes_NOD_UP)
+names(gene_vector_NODOSE_UP) = assayed_genes_NOD
+
+table(gene_vector_NODOSE_UP)
+
+# gene_vector_NODOSE_UP
+#     0     1 
+# 17858     9 
+
+
+pwf_ens91_median_DRG_UP = nullp(gene_vector_DRG_UP, bias.data = my_mouse_ens_v91_median_txlength_df[assayed_genes_DRG,])
+
+pwf_ens91_median_NODOSE_UP = nullp(gene_vector_NODOSE_UP, bias.data = my_mouse_ens_v91_median_txlength_df[assayed_genes_NOD,])
+
+### Plots are weird. Maybe due to the low number of DE genes that are significantly upregulated?
+
+###
+
+KEGG_DRG_UP = goseq(pwf_ens91_median_DRG_UP, gene2cat = kegg)
+
+# Using manually entered categories.
+# For 12910 genes, we could not find any categories. These genes will be excluded.
+# To force their use, please run with use_genes_without_cat=TRUE (see documentation).
+# This was the default behavior for version 1.15.1 and earlier.
+# Calculating the p-values...
+
+### for nodose samples:
+
+KEGG_NODOSE_UP = goseq(pwf_ens91_median_NODOSE_UP, gene2cat = kegg)
+
+KEGG_DRG_UP$padj_value = p.adjust( KEGG_DRG_UP$over_represented_pvalue, method = "BH")
+ 
+KEGG_NODOSE_UP$padj_value = p.adjust( KEGG_NODOSE_UP$over_represented_pvalue, method = "BH")
+ 
+
+head(KEGG_NODOSE_UP)
+# 
+#     category over_represented_pvalue under_represented_pvalue numDEInCat numInCat
+# 22     00270              0.01307607                0.9999584          1       31
+# 208    05218              0.02692842                0.9998190          1       67
+# 164    04810              0.07713604                0.9984600          1      199
+# 104    04010              0.09635438                0.9975698          1      248
+# 199    05200              0.11558214                0.9964639          1      298
+# 85     01100              0.36541495                0.9586736          1      985
+#     padj_value
+# 22           1
+# 208          1
+# 164          1
+# 104          1
+# 199          1
+# 85           1
+
+### No significant for nodose:
+### Order by padj values:
+
+KEGG_DRG_UP  = KEGG_DRG_UP[order(KEGG_DRG_UP$padj_value),] 
+KEGG_DRG_UP_sig = subset( KEGG_DRG_UP, padj_value < 0.05)
+
+length(KEGG_DRG_UP_sig$category)
+
+# [1] 1
+
+### Modify names:
+
+KEGG_DRG_UP_sig_mmu_IDS = str_c("mmu", KEGG_DRG_UP_sig$category)
+KEGG_DRG_UP_sig_mmu_IDS = as.data.frame(KEGG_DRG_UP_sig_mmu_IDS)
+ 
+KEGG_DRG_UP_sig$KEGG_Name = keggList(KEGG_DRG_UP_sig_mmu_IDS$KEGG_DRG_UP_sig_mmu_IDS)
+ 
+### Add "mmu" KEGG Ids:
+
+KEGG_DRG_UP_sig$KEGG_ID = KEGG_DRG_UP_sig_mmu_IDS$KEGG_DRG_UP_sig_mmu_IDS
+
+### EXPORT:
+
+write.csv(KEGG_DRG_UP_sig, file = "KEGG_DRG_UP_sig.txt")
+
+#############################################################################################
+
+### Reactome pathway enrichment analysis with goseq:
+
+
+library(reactome.db)
+
+### get reactome patway ids for each entrez id:
+
+eg2reactome=as.list(reactomeEXTID2PATHID)
+
+### Get entrez id for each ENS ID:
+
+en2eg=as.list(org.Mm.egENSEMBL2EG)
+
+####
+
+# Define a function which gets all unique Reactome IDs:
+# associated with a set of Entrez IDs
+
+grepREActome=function(id,mapkeys){unique(unlist(mapkeys[id],use.names=FALSE))}
+
+# Apply this function to every entry in the mapping from
+# ENSEMBL 2 Entrez to combine the two maps
+
+reactome_yek=lapply(en2eg,grepREActome,eg2reactome)
+
+head(reactome_yek)
+
+# $`ENSMUSG00000030359`
+# NULL
+# 
+# $ENSMUSG00000020804
+# [1] "R-MMU-1430728" "R-MMU-209776"  "R-MMU-209931"  "R-MMU-71291"  
+# 
+# $ENSMUSG00000025375
+# NULL
+# 
+# $ENSMUSG00000015243
+# [1] "R-MMU-174824"  "R-MMU-382551"  "R-MMU-8963896" "R-MMU-8963898"
+# 
+# $ENSMUSG00000028125
+# [1] "R-MMU-162582"  "R-MMU-2187338" "R-MMU-2453902" "R-MMU-372790" 
+# [5] "R-MMU-382551"  "R-MMU-382556"  "R-MMU-388396"  "R-MMU-418594" 
+# 
+# $ENSMUSG00000026944
+# [1] "R-MMU-1369062" "R-MMU-382551"  "R-MMU-382556" 
+
+### Reactome analysis:
+
+Reactome_goseq_DRG_all = goseq(pwf_ens91_median_try_2_DRG,  gene2cat = reactome_yek)
+
+# Using manually entered categories.
+# For 10267 genes, we could not find any categories. These genes will be excluded.
+# To force their use, please run with use_genes_without_cat=TRUE (see documentation).
+# This was the default behavior for version 1.15.1 and earlier.
+# Calculating the p-values...
+
+head(Reactome_goseq_DRG_all)
+# 
+#           category over_represented_pvalue under_represented_pvalue
+# 151  R-MMU-1474244            6.347769e-13                1.0000000
+# 538   R-MMU-216083            2.908125e-11                1.0000000
+# 1125 R-MMU-6798695            9.633154e-09                1.0000000
+# 150  R-MMU-1474228            3.211465e-08                1.0000000
+# 275   R-MMU-168249            3.449113e-07                0.9999999
+# 144  R-MMU-1442490            4.740615e-06                0.9999995
+#      numDEInCat numInCat
+# 151          32      239
+# 538          17       72
+# 1125         34      433
+# 150          16       96
+# 275          45      776
+# 144           9       43
+
+Reactome_goseq_NODOSE_all = goseq(pwf_ens91_median_try_2_NOD,  gene2cat = reactome_yek)
+# 
+# Using manually entered categories.
+# For 10267 genes, we could not find any categories. These genes will be excluded.
+# To force their use, please run with use_genes_without_cat=TRUE (see documentation).
+# This was the default behavior for version 1.15.1 and earlier.
+# Calculating the p-values...
+
+head(Reactome_goseq_NODOSE_all)
+
+#          category over_represented_pvalue under_represented_pvalue
+# 538  R-MMU-216083            2.697503e-08                1.0000000
+# 151 R-MMU-1474244            7.716003e-07                0.9999998
+# 615 R-MMU-3000178            4.018229e-05                0.9999953
+# 614 R-MMU-3000171            8.403687e-05                0.9999909
+# 465  R-MMU-202733            1.461303e-04                0.9999722
+# 150 R-MMU-1474228            1.759826e-04                0.9999625
+#     numDEInCat numInCat
+# 538         14       72
+# 151         23      239
+# 615          8       43
+# 614          7       37
+# 465         10       88
+# 150         11       96
+
+### Adding BH p adj (fdr) values:
+
+Reactome_goseq_DRG_all$padj_value = p.adjust(Reactome_goseq_DRG_all$over_represented_pvalue, method = "BH")
+Reactome_goseq_NODOSE_all$padj_value = p.adjust(Reactome_goseq_NODOSE_all$over_represented_pvalue, method = "BH")
+
+### Order by padj values:
+
+Reactome_goseq_DRG_all = Reactome_goseq_DRG_all[order(Reactome_goseq_DRG_all$padj_value),]
+ 
+Reactome_goseq_NODOSE_all = Reactome_goseq_NODOSE_all[order(Reactome_goseq_NODOSE_all$padj_value),]
+
+### Significant ones:
+Reactome_goseq_DRG_all_sig = subset( Reactome_goseq_DRG_all, padj_value < 0.05)
+ 
+Reactome_goseq_NODOSE_all_sig = subset( Reactome_goseq_NODOSE_all, padj_value < 0.05)
+
+
+### To add pathway names to the lists,
+### Prepare reactome id to name dataframe:
+
+reactome_pathway_names_df = as.data.frame(reactomePATHID2NAME)
+
+head(reactome_pathway_names_df)
+
+#           DB_ID
+# 1   R-ATH-73843
+# 2 R-ATH-1369062
+# 3  R-ATH-382556
+# 4  R-ATH-163680
+# 5  R-ATH-174143
+# 6  R-ATH-176409
+# 
+#                                                                        path_name
+# 1                                                 1-diphosphate: 5-Phosphoribose
+# 2                    Arabidopsis thaliana: ABC transporters in lipid homeostasis
+# 3                   Arabidopsis thaliana: ABC-family proteins mediated transport
+# 4 Arabidopsis thaliana: AMPK inhibits chREBP transcriptional activation activity
+# 5        Arabidopsis thaliana: APC/C-mediated degradation of cell cycle proteins
+# 6     Arabidopsis thaliana: APC/C:Cdc20 mediated degradation of mitotic proteins
+
+row.names(reactome_pathway_names_df) = reactome_pathway_names_df$DB_ID
+
+reactome_pathway_names_df$DB_ID = NULL
+
+head(reactome_pathway_names_df)
+#                                                                                    path_name
+# R-ATH-73843                                                   1-diphosphate: 5-Phosphoribose
+# R-ATH-1369062                    Arabidopsis thaliana: ABC transporters in lipid homeostasis
+# R-ATH-382556                    Arabidopsis thaliana: ABC-family proteins mediated transport
+# R-ATH-163680  Arabidopsis thaliana: AMPK inhibits chREBP transcriptional activation activity
+# R-ATH-174143         Arabidopsis thaliana: APC/C-mediated degradation of cell cycle proteins
+# R-ATH-176409      Arabidopsis thaliana: APC/C:Cdc20 mediated degradation of mitotic proteins
+
+
+## dataframe is ready to be used:
+### Add names:
+
+Reactome_goseq_DRG_all_sig$pathway_name = reactome_pathway_names_df[Reactome_goseq_DRG_all_sig$category,]
+
+Reactome_goseq_NODOSE_all_sig$pathway_name = reactome_pathway_names_df[Reactome_goseq_NODOSE_all_sig$category,]
+ 
+write.csv(Reactome_goseq_DRG_all_sig, file = "Reactome_goseq_DRG_all_sig.txt")
+write.csv(Reactome_goseq_NODOSE_all_sig, file = "Reactome_goseq_NODOSE_all_sig.txt")
+
+###########################################################################################################
+
+#### GO enrichment analysis with Goseq:
+
+### Rename previously prepared pwf data, since we tried and are satisfied with the results of previous analyzes with KEGG and REACTOME gene sets:
+
+pwf_ens91_median_DRG = pwf_ens91_median_try_2_DRG 
+
+pwf_ens91_median_NODOSE = pwf_ens91_median_try_2_NOD
+
+#### Remove old ones:
+
+remove(pwf_ens91_median_try_2_DRG)
+remove(pwf_ens91_median_try_2_NOD)
+
+#####################################################
+
+### Gene Ontolgy Analysis:
+
+
+GO_BP_DRG_all = goseq(pwf_ens91_median_DRG, "mm10","ensGene", test.cats = c("GO:BP"))
+
+# Fetching GO annotations...
+# 
+# For 2129 genes, we could not find any categories. These genes will be excluded.
+# To force their use, please run with use_genes_without_cat=TRUE (see documentation).
+# This was the default behavior for version 1.15.1 and earlier.
+# Calculating the p-values...
+# 'select()' returned 1:1 mapping between keys and columns
+
+GO_MF_DRG_all = goseq(pwf_ens91_median_DRG, "mm10","ensGene", test.cats = c("GO:MF"))
+
+GO_CC_DRG_all = goseq(pwf_ens91_median_DRG, "mm10","ensGene", test.cats = c("GO:CC"))
+
+GO_BP_NODOSE_all = goseq(pwf_ens91_median_NODOSE, "mm10","ensGene", test.cats = c("GO:BP"))
+
+GO_MF_NODOSE_all = goseq(pwf_ens91_median_NODOSE, "mm10","ensGene", test.cats = c("GO:MF"))
+
+GO_CC_NODOSE_all = goseq(pwf_ens91_median_NODOSE, "mm10","ensGene", test.cats = c("GO:CC"))
+
+
+### Adding BH p adj (fdr) values:
+
+GO_BP_DRG_all$padj_value = p.adjust(GO_BP_DRG_all$over_represented_pvalue, method = "BH")
+ 
+GO_MF_DRG_all$padj_value = p.adjust(GO_MF_DRG_all$over_represented_pvalue, method = "BH")
+
+GO_CC_DRG_all$padj_value = p.adjust(GO_CC_DRG_all$over_represented_pvalue, method = "BH")
+
+####
+
+GO_BP_NODOSE_all$padj_value = p.adjust(GO_BP_NODOSE_all$over_represented_pvalue, method = "BH")
+ 
+GO_MF_NODOSE_all$padj_value = p.adjust(GO_MF_NODOSE_all$over_represented_pvalue, method = "BH")
+ 
+GO_CC_NODOSE_all$padj_value = p.adjust(GO_CC_NODOSE_all$over_represented_pvalue, method = "BH")
+ 
+####
+### Order by padj values:
+
+GO_BP_DRG_all = GO_BP_DRG_all[order(GO_BP_DRG_all$padj_value),] 
+GO_MF_DRG_all = GO_MF_DRG_all[order(GO_MF_DRG_all$padj_value),] 
+GO_CC_DRG_all = GO_CC_DRG_all[order(GO_CC_DRG_all$padj_value),] 
+
+####
+GO_BP_NODOSE_all = GO_BP_NODOSE_all[order(GO_BP_NODOSE_all$padj_value),] 
+GO_MF_NODOSE_all = GO_MF_NODOSE_all[order(GO_MF_NODOSE_all$padj_value),] 
+GO_CC_NODOSE_all = GO_CC_NODOSE_all[order(GO_CC_NODOSE_all$padj_value),] 
+
+####
+### significant list:
+
+GO_BP_DRG_all_sig = subset(GO_BP_DRG_all, padj_value < 0.05)
+GO_MF_DRG_all_sig = subset(GO_MF_DRG_all, padj_value < 0.05)
+GO_CC_DRG_all_sig = subset(GO_CC_DRG_all, padj_value < 0.05)
+
+###
+
+GO_BP_NODOSE_all_sig = subset(GO_BP_NODOSE_all, padj_value < 0.05)
+GO_MF_NODOSE_all_sig = subset(GO_MF_NODOSE_all, padj_value < 0.05)
+GO_CC_NODOSE_all_sig = subset(GO_CC_NODOSE_all, padj_value < 0.05)
+
+###
+
+write.csv(GO_BP_DRG_all_sig, file = "GO_BP_DRG_all_sig.txt")
+write.csv(GO_MF_DRG_all_sig, file = "GO_MF_DRG_all_sig.txt")
+write.csv(GO_CC_DRG_all_sig, file = "GO_CC_DRG_all_sig.txt")
+
+####
+
+write.csv(GO_BP_NODOSE_all_sig, file = "GO_BP_NODOSE_all_sig.txt")
+write.csv(GO_MF_NODOSE_all_sig, file = "GO_MF_NODOSE_all_sig.txt")
+write.csv(GO_CC_NODOSE_all_sig, file = "GO_CC_NODOSE_all_sig.txt")
+
+####
+
+########################################################################################
+
+# Reactome pathway enrichment analysis for significantly upregulated genes:
+  
+
+### Reactome Up lists:
+
+
+library(goseq)
+
+
+Reactome_goseq_DRG_UP = goseq(pwf_ens91_median_DRG_UP,  gene2cat = reactome_yek)
+
+head(Reactome_goseq_DRG_UP)
+# 
+#           category over_represented_pvalue under_represented_pvalue
+# 85   R-MMU-1247673            6.973411e-05                0.9999998
+# 544  R-MMU-2168880            1.406223e-04                0.9999994
+# 83   R-MMU-1237044            1.406223e-04                0.9999994
+# 154  R-MMU-1480926            1.406223e-04                0.9999994
+# 547  R-MMU-2173782            6.646940e-04                0.9999935
+# 1101  R-MMU-629587            5.253814e-03                0.9999907
+#      numDEInCat numInCat
+# 85            2       10
+# 544           2       14
+# 83            2       14
+# 154           2       14
+# 547           2       30
+# 1101          1        4
+
+Reactome_goseq_NODOSE_UP = goseq(pwf_ens91_median_NODOSE_UP,  gene2cat = reactome_yek)
+
+head(Reactome_goseq_NODOSE_UP)
+
+### Adding BH p adj (fdr) values:
+
+Reactome_goseq_DRG_UP$padj_value = p.adjust(Reactome_goseq_DRG_UP$over_represented_pvalue, method = "BH")
+
+Reactome_goseq_NODOSE_UP$padj_value = p.adjust(Reactome_goseq_NODOSE_UP$over_represented_pvalue, method = "BH")
+ 
+
+### Order by padj values:
+
+Reactome_goseq_DRG_UP = Reactome_goseq_DRG_UP[order(Reactome_goseq_DRG_UP$padj_value),]
+
+Reactome_goseq_NODOSE_UP = Reactome_goseq_NODOSE_UP[order(Reactome_goseq_NODOSE_UP$padj_value),]
+
+### Significant ones:
+Reactome_goseq_DRG_UP_sig = subset(Reactome_goseq_DRG_UP, padj_value < 0.05)
+ 
+Reactome_goseq_NODOSE_UP_sig = subset(Reactome_goseq_NODOSE_UP, padj_value < 0.05)
+
+####
+
+head(Reactome_goseq_DRG_UP_sig)
+# 
+# [1] category                 over_represented_pvalue 
+# [3] under_represented_pvalue numDEInCat              
+# [5] numInCat                 padj_value              
+# <0 rows> (or 0-length row.names)
+
+
+head(Reactome_goseq_NODOSE_UP_sig)
+# 
+# [1] category                 over_represented_pvalue 
+# [3] under_represented_pvalue numDEInCat              
+# [5] numInCat                 padj_value              
+# <0 rows> (or 0-length row.names)
+
+### To add pathway names to the lists,
+
+Reactome_goseq_DRG_UP$pathway_name = reactome_pathway_names_df[Reactome_goseq_DRG_UP$category,]
+
+Reactome_goseq_NODOSE_UP$pathway_name = reactome_pathway_names_df[Reactome_goseq_NODOSE_UP$category,]
+
+#### EXPORT:
+
+write.csv(Reactome_goseq_DRG_UP, file = "Reactome_goseq_DRG_UP.txt")
+ 
+write.csv(Reactome_goseq_NODOSE_UP, file = "Reactome_goseq_NODOSE_UP.txt")
+
+##########################################################################################################
+
+#### Modification of pathway names for previously obtained KEGG and Reactome enrichment analysis results objects for all the significant genes in DRG and NG ###  samples
+
+#### We order previously unused list:
+
+### Order by padj values:
+
+KEGG_NODOSE_UP  = KEGG_NODOSE_UP[order(KEGG_NODOSE_UP$padj_value),] 
+
+#### the following package will be used just for naming of pathways.
+
+### NOT FOR ANALYSIS:
+
+library(KEGG.db)
+# 
+# KEGG.db contains mappings based on older data because the original
+#   resource was removed from the the public domain before the most
+#   recent update was produced. This package should now be considered
+#   deprecated and future versions of Bioconductor may not have it
+#   available.  Users who want more current data are encouraged to
+#   look at the KEGGREST or reactome.db packages
+
+#### Prepare a data.frame containing KEGG ID and pathway names:
+
+KEGG_pathway_names_df = as.data.frame(KEGGPATHID2NAME)
+
+head(KEGG_pathway_names_df)
+
+ 
+#   path_id                                path_name
+# 1   00010             Glycolysis / Gluconeogenesis
+# 2   00020                Citrate cycle (TCA cycle)
+# 3   00030                Pentose phosphate pathway
+# 4   00040 Pentose and glucuronate interconversions
+# 5   00051          Fructose and mannose metabolism
+# 6   00052                     Galactose metabolism
+
+length(KEGG_pathway_names_df$path_id)
+
+# [1] 478
+
+row.names(KEGG_pathway_names_df) = KEGG_pathway_names_df$path_id
+
+KEGG_pathway_names_df$path_id = NULL
+
+head(KEGG_pathway_names_df)
+
+#                                      path_name
+# 00010             Glycolysis / Gluconeogenesis
+# 00020                Citrate cycle (TCA cycle)
+# 00030                Pentose phosphate pathway
+# 00040 Pentose and glucuronate interconversions
+# 00051          Fructose and mannose metabolism
+# 00052                     Galactose metabolism
+
+### Ready to be used:
+
+KEGG_DRG_all$path_name = KEGG_pathway_names_df[KEGG_DRG_all$category,]
+KEGG_NODOSE_all$path_name = KEGG_pathway_names_df[KEGG_NODOSE_all$category,]
+KEGG_DRG_UP$path_name = KEGG_pathway_names_df[KEGG_DRG_UP$category,]
+KEGG_NODOSE_UP$path_name = KEGG_pathway_names_df[KEGG_NODOSE_UP$category,]
+
+### EXPORT:
+
+write.csv(KEGG_DRG_all, file = "KEGG_DRG_all.txt")
+write.csv(KEGG_NODOSE_all, file = "KEGG_NODOSE_all.txt")
+write.csv(KEGG_DRG_UP, file = "KEGG_DRG_UP.txt")
+write.csv(KEGG_NODOSE_UP, file = "KEGG_NODOSE_UP.txt")
+
+#####
+
+#### MAKE same for reactome-all lists:
+### NOT: REACTOME data for UP lists were done before.
+
+Reactome_goseq_DRG_all$path_name = reactome_pathway_names_df[Reactome_goseq_DRG_all$category,]
+Reactome_goseq_NODOSE_all$path_name = reactome_pathway_names_df[Reactome_goseq_NODOSE_all$category,]
+
+### EXPORT:
+
+write.csv(Reactome_goseq_DRG_all, file = "Reactome_goseq_DRG_all.txt")
+write.csv(Reactome_goseq_NODOSE_all, file = "Reactome_goseq_NODOSE_all.txt")
+
+#### DONE ####
+
+##########################################################################################################
+
+### Finding the enriched GO terms for significantly downregulated genes within both groups:
+
+library(goseq)
+
+##### Gene vector for GOSEQ:
+
+gene_vector_DRG_Down = as.integer(assayed_genes_DRG%in%de_genes_DRG_DOWN)
+names(gene_vector_DRG_Down) = assayed_genes_DRG
+
+table(gene_vector_DRG_Down)
+
+# gene_vector_DRG_Down
+#     0     1 
+# 17483   384 
+
+#### For nodose:
+
+gene_vector_Nodose_Down = as.integer(assayed_genes_NOD%in%de_genes_NOD_DOWN)
+names(gene_vector_Nodose_Down) = assayed_genes_NOD
+table(gene_vector_Nodose_Down)
+
+# gene_vector_Nodose_Down
+#     0     1 
+# 17465   402 
+
+####
+####
+
+pwf_ens91_median_DRG_Down = nullp(gene_vector_DRG_Down, bias.data = my_mouse_ens_v91_median_txlength_df[assayed_genes_DRG,])
+
+# Warning message:
+# In pcls(G) : initial point very close to some inequality constraints
+
+pwf_ens91_median_Nodose_Down = nullp(gene_vector_Nodose_Down, bias.data = my_mouse_ens_v91_median_txlength_df[assayed_genes_NOD,])
+
+# Warning message:
+# In pcls(G) : initial point very close to some inequality constraints
+
+
+>##### e Ontolgy Analysis:
+
+GO_BP_DRG_down = goseq(pwf_ens91_median_DRG_Down, "mm10","ensGene", test.cats = c("GO:BP"))
+
+# Fetching GO annotations...
+# 
+# For 2129 genes, we could not find any categories. These genes will be excluded.
+# To force their use, please run with use_genes_without_cat=TRUE (see documentation).
+# This was the default behavior for version 1.15.1 and earlier.
+# Calculating the p-values...
+# 'select()' returned 1:1 mapping between keys and columns
+
+GO_BP_Nodose_down = goseq(pwf_ens91_median_Nodose_Down, "mm10","ensGene", test.cats = c("GO:BP"))
+
+### Adding BH p adj (fdr) values:
+
+GO_BP_DRG_down$padj_value = p.adjust(GO_BP_DRG_down$over_represented_pvalue, method = "BH")
+ 
+GO_BP_Nodose_down$padj_value = p.adjust(GO_BP_Nodose_down$over_represented_pvalue, method = "BH")
+ 
+####
+
+### Order by padj values:
+
+GO_BP_DRG_down = GO_BP_DRG_down[order(GO_BP_DRG_down$padj_value),]
+GO_BP_Nodose_down = GO_BP_Nodose_down[order(GO_BP_Nodose_down$padj_value),]
+
+####
+### significant list:
+
+GO_BP_DRG_down_sig = subset(GO_BP_DRG_down, padj_value < 0.05)
+GO_BP_Nodose_down_sig = subset(GO_BP_Nodose_down, padj_value < 0.05)
+
+####
+
+write.csv(GO_BP_DRG_down_sig, file = "GO_BP_DRG_down_sig.txt")
+write.csv(GO_BP_Nodose_down_sig, file = "GO_BP_Nodose_down_sig.txt")
+
+###
+
+#############################################################################################
+
+### GO enrichment analysis for only significantly upregulated genes:
+
+library(goseq)
+
+head(pwf_ens91_median_NODOSE_UP)
+
+#                    DEgenes bias.data         pwf
+# ENSMUSG00000053198       0    4669.0 0.001244192
+# ENSMUSG00000007655       0     472.0 0.001657334
+# ENSMUSG00000019929       0    1758.0 0.001553081
+# ENSMUSG00000043924       0    1203.0 0.001602973
+# ENSMUSG00000030237       0    2464.5 0.001393393
+# ENSMUSG00000020717       0    2991.5 0.001289543
+
+table(pwf_ens91_median_NODOSE_UP$DEgenes)
+
+#     0     1 
+# 17858     9 
+
+write.csv(temorary_genes, file = "nodose_up_genes.txt")
+
+
+GO_BP_NODOSE_up = goseq(pwf_ens91_median_NODOSE_UP, "mm10","ensGene", test.cats = c("GO:BP"))
+
+GO_MF_NODOSE_up = goseq(pwf_ens91_median_NODOSE_UP, "mm10","ensGene", test.cats = c("GO:MF"))
+
+GO_CC_NODOSE_up = goseq(pwf_ens91_median_NODOSE_UP, "mm10","ensGene", test.cats = c("GO:CC"))
+
+### Adding BH p adj (fdr) values:
+
+GO_BP_NODOSE_up$padj_value = p.adjust(GO_BP_NODOSE_up$over_represented_pvalue, method = "BH")
+
+GO_MF_NODOSE_up$padj_value = p.adjust(GO_MF_NODOSE_up$over_represented_pvalue, method = "BH")
+
+GO_CC_NODOSE_up$padj_value = p.adjust(GO_CC_NODOSE_up$over_represented_pvalue, method = "BH")
+
+
+### Order by padj values:
+GO_BP_NODOSE_up = GO_BP_NODOSE_up[order(GO_BP_NODOSE_up$padj_value),] 
+GO_MF_NODOSE_up = GO_MF_NODOSE_up[order(GO_MF_NODOSE_up$padj_value),] 
+GO_CC_NODOSE_up = GO_CC_NODOSE_up[order(GO_CC_NODOSE_up$padj_value),] 
+###
+write.csv(GO_BP_NODOSE_up, file = "GO_BP_NODOSE_up.txt")
+write.csv(GO_MF_NODOSE_up, file = "GO_MF_NODOSE_up.txt")
+write.csv(GO_CC_NODOSE_up, file = "GO_CC_NODOSE_up.txt")
+###
+write.csv(GO_BP_NODOSE_all, file = "GO_BP_NODOSE_all.txt")
+write.csv(GO_MF_NODOSE_all, file = "GO_MF_NODOSE_all.txt")
+write.csv(GO_CC_NODOSE_all, file = "GO_CC_NODOSE_all.txt")
+
+
+################################################################################################
+
+### We will perform the enrichment analyses for significantly upregulated genes by decreasing LogFC threshold from 1.5 to 0.5 to include more genes.
+
+
+#### Last versions of reactome.db, org.Mm.eg.db were installed.
+
+library(org.Mm.eg.db)
+
+library(reactome.db)
+ 
+### get reactome patway ids for each entrez id:
+
+eg2reactome_last=as.list(reactomeEXTID2PATHID)
+
+### Get entrez id for each ENS ID:
+
+en2eg_last=as.list(org.Mm.egENSEMBL2EG)
+
+# Define a function which gets all unique Reactome IDs:
+
+# associated with a set of Entrez IDs
+
+grepREActome_last =function(id,mapkeys){unique(unlist(mapkeys[id],use.names=FALSE))}
+
+# Apply this function to every entry in the mapping from
+
+# ENSEMBL 2 Entrez to combine the two maps
+
+reactome_last_data = lapply(en2eg_last,grepREActome_last,eg2reactome_last)
+
+setdiff(reactome_last_data, reactome_yek)
+
+### old and new lists are same. So oldly prepared reactome list was also from recent release.
+
+### Additional check :
+
+library(goseq)
+
+Reactome_goseq_DRG_UPw_new_Database  = goseq(pwf_ens91_median_DRG_UP,  gene2cat = reactome_last_data)
+
+####Same analysis with theprevious reactome list:
+
+Reactome_goseq_DRG_UP_try = goseq(pwf_ens91_median_DRG_UP,  gene2cat = reactome_yek)
+
+### Check the difference:
+
+setdiff(Reactome_goseq_DRG_UP_try, Reactome_goseq_DRG_UPw_new_Database)
+
+# data frame with 0 columns and 0 rows
+
+### They are same.
+
+#### Prepare logFC 0.5 lists:
+
+res_NODS_F_vs_cont_nodose_symbols_NA_keeped_sig = subset(res_NODS_F_vs_cont_nodose_symbols_NA_keeped, padj < 0.05)
+res_NODS_F_vs_cont_nodose_symbols_NA_keeped_sig_logFC_05_UP = subset(res_NODS_F_vs_cont_nodose_symbols_NA_keeped_sig, log2FoldChange > 0.49999999)
+res_NODS_F_vs_cont_nodose_symbols_NA_keeped_sig_logFC_05_DOWN = subset(res_NODS_F_vs_cont_nodose_symbols_NA_keeped_sig, log2FoldChange < -0.49999999)
+
+#########
+
+res_DRG_F_vs_cont_drg_symbols_NA_keeped_sig = subset(res_DRG_F_vs_cont_drg_symbols_NA_keeped, padj < 0.05)
+res_DRG_F_vs_cont_drg_symbols_NA_keeped_sig_logFC_05_UP = subset(res_DRG_F_vs_cont_drg_symbols_NA_keeped_sig, log2FoldChange > 0.49999999)
+res_DRG_F_vs_cont_drg_symbols_NA_keeped_sig_logFC_05_DOWN = subset(res_DRG_F_vs_cont_drg_symbols_NA_keeped_sig, log2FoldChange < -0.49999999)
+
+#######
+
+####
+res_DRG_F_vs_cont_drg_symbols_NA_keeped_sig = subset(res_DRG_F_vs_cont_drg_symbols_NA_keeped, padj < 0.05)
+res_DRG_F_vs_cont_drg_symbols_NA_keeped_sig_logFC_05_UP = subset(res_DRG_F_vs_cont_drg_symbols_NA_keeped_sig, log2FoldChange > 0.49999999)
+res_DRG_F_vs_cont_drg_symbols_NA_keeped_sig_logFC_05_DOWN = subset(res_DRG_F_vs_cont_drg_symbols_NA_keeped_sig, log2FoldChange < -0.49999999)
+####
+write.csv(res_DRG_F_vs_cont_drg_symbols_NA_keeped_sig, file = "res_DRG_F_vs_cont_drg_symbols_NA_keeped_sig.txt")
+write.csv(res_DRG_F_vs_cont_drg_symbols_NA_keeped_sig_logFC_05_UP, file = "res_DRG_F_vs_cont_drg_symbols_NA_keeped_sig_logFC_05_UP.txt")
+write.csv(res_DRG_F_vs_cont_drg_symbols_NA_keeped_sig_logFC_05_DOWN, file = "res_DRG_F_vs_cont_drg_symbols_NA_keeped_sig_logFC_05_DOWN.txt")
+####
+write.csv(res_NODS_F_vs_cont_nodose_symbols_NA_keeped_sig, file = "res_NODS_F_vs_cont_nodose_symbols_NA_keeped_sig.txt")
+write.csv(res_NODS_F_vs_cont_nodose_symbols_NA_keeped_sig_logFC_05_UP, file = "res_NODS_F_vs_cont_nodose_symbols_NA_keeped_sig_logFC_05_UP.txt")
+write.csv(res_NODS_F_vs_cont_nodose_symbols_NA_keeped_sig_logFC_05_DOWN, file = "res_NODS_F_vs_cont_nodose_symbols_NA_keeped_sig_logFC_05_DOWN.txt")
+####
+write.csv(res_NODS_F_vs_cont_nodose_symbols_NA_keeped, file = "res_NODS_F_vs_cont_nodose_symbols_NA_keeped.txt")
+write.csv(res_DRG_F_vs_cont_drg_symbols_NA_keeped, file = "res_DRG_F_vs_cont_drg_symbols_NA_keeped.txt")
+
+####
+
+##### Gene vector for GOSEQ: 
+
+gene_vector_DRG_UP_Log_05 = as.integer(assayed_genes_DRG%in%de_genes_DRG_UP_Log_05)
+names(gene_vector_DRG_UP_Log_05) = assayed_genes_DRG
+table(gene_vector_DRG_UP_Log_05)
+
+# gene_vector_DRG_UP_Log_05
+#     0     1 
+# 17629   238 
+
+####
+
+gene_vector_Nodose_UP_Log_05 = as.integer(assayed_genes_NOD%in%de_genes_NOD_UP_Log_05)
+names(gene_vector_Nodose_UP_Log_05) = assayed_genes_NOD
+table(gene_vector_Nodose_UP_Log_05)
+
+# gene_vector_Nodose_UP_Log_05
+#     0     1 
+# 17801    66 
+
+pwf_DRG_UP_Log_05 = nullp(gene_vector_DRG_UP_Log_05, bias.data = my_mouse_ens_v91_median_txlength_df[assayed_genes_DRG,])
+pwf_Nodose_UP_Log_05 = nullp(gene_vector_Nodose_UP_Log_05, bias.data = my_mouse_ens_v91_median_txlength_df[assayed_genes_NOD,])
+
+#########
+
+Reactome_goseq_DRG_UP_log_05 = goseq(pwf_DRG_UP_Log_05,  gene2cat = reactome_last_data)
+
+Reactome_goseq_Nodose_UP_log_05 = goseq(pwf_Nodose_UP_Log_05,  gene2cat = reactome_last_data)
+
+###
+
+####
+
+### Adding BH p adj (fdr) values:
+
+Reactome_goseq_DRG_UP_log_05$padj_value = p.adjust(Reactome_goseq_DRG_UP_log_05$over_represented_pvalue, method = "BH")
+
+Reactome_goseq_Nodose_UP_log_05$padj_value = p.adjust(Reactome_goseq_Nodose_UP_log_05$over_represented_pvalue, method = "BH")
+
+### Order by padj values:
+
+Reactome_goseq_DRG_UP_log_05 = Reactome_goseq_DRG_UP_log_05[order(Reactome_goseq_DRG_UP_log_05$padj_value),]
+
+Reactome_goseq_Nodose_UP_log_05 = Reactome_goseq_Nodose_UP_log_05[order(Reactome_goseq_Nodose_UP_log_05$padj_value),]
+
+####
+####
+### Significant ones:
+
+Reactome_goseq_DRG_UP_log_05_sig = subset(Reactome_goseq_DRG_UP_log_05, padj_value < 0.05)
+Reactome_goseq_Nodose_UP_log_05_sig = subset(Reactome_goseq_Nodose_UP_log_05, padj_value < 0.05)
+
+###
+Reactome_goseq_DRG_UP_log_05_sig
+# 
+# [1] category                 over_represented_pvalue  under_represented_pvalue
+# [4] numDEInCat               numInCat                 padj_value              
+# <0 rows> (or 0-length row.names)
+
+Reactome_goseq_Nodose_UP_log_05_sig
+# 
+# [1] category                 over_represented_pvalue  under_represented_pvalue
+# [4] numDEInCat               numInCat                 padj_value              
+# <0 rows> (or 0-length row.names)
+
+#### Including more upregulated genes did not change the result.
+
+### To add pathway names to the lists,
+
+Reactome_goseq_DRG_UP_log_05$pathway_name = reactome_pathway_names_df[Reactome_goseq_DRG_UP_log_05$category,]
+Reactome_goseq_Nodose_UP_log_05$pathway_name = reactome_pathway_names_df[Reactome_goseq_Nodose_UP_log_05$category,]
+
+### EXPORT
+
+write.csv(Reactome_goseq_DRG_UP_log_05, file = "Reactome_goseq_DRG_UP_log_05.txt")
+write.csv(Reactome_goseq_Nodose_UP_log_05, file = "Reactome_goseq_Nodose_UP_log_05.txt")
+####
+
+#####################################################################################################
+
+### GO enrichment analysis with upregylated genes of Log2F > 0.5 between samples:
+
+
+if (!require("BiocManager", quietly = TRUE))
+ install.packages("BiocManager")
+
+BiocManager::install("goseq")
+
+library(goseq)
+
+BiocManager::install("org.Mm.eg.db")
+
+GO_BP_DRG_up = goseq(pwf_DRG_UP_Log_05, "mm10","ensGene", test.cats = c("GO:BP"))
+
+
+GO_MF_DRG_up = goseq(pwf_DRG_UP_Log_05, "mm10","ensGene", test.cats = c("GO:MF"))
+
+
+GO_CC_DRG_up = goseq(pwf_DRG_UP_Log_05, "mm10","ensGene", test.cats = c("GO:CC"))
+
+
+### Adding BH p adj (fdr) values:
+GO_BP_DRG_up$padj_value = p.adjust(GO_BP_DRG_up$over_represented_pvalue, method = "BH")
+
+GO_MF_DRG_up$padj_value = p.adjust(GO_MF_DRG_up$over_represented_pvalue, method = "BH")
+ 
+GO_CC_DRG_up$padj_value = p.adjust(GO_CC_DRG_up$over_represented_pvalue, method = "BH")
+ 
+### Order by padj values:
+GO_BP_DRG_up = GO_BP_DRG_up[order(GO_BP_DRG_up$padj_value),] 
+ 
+GO_MF_DRG_up = GO_MF_DRG_up[order(GO_MF_DRG_up$padj_value),] 
+
+GO_CC_DRG_up = GO_CC_DRG_up[order(GO_CC_DRG_up$padj_value),] 
+
+
+### Export as .csv files:
+
+write.csv(GO_BP_DRG_up, file = "GO_BP_DRG_up.txt")
+
+write.csv(GO_MF_DRG_up, file = "GO_MF_DRG_up.txt")
+
+write.csv(GO_CC_DRG_up, file = "GO_CC_DRG_up.txt")
+
+
+sessionInfo()
+
+
+#### END ###
+
+
+
+
+
+
+
+
+
+
+
+```
+
